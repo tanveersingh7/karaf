@@ -17,6 +17,7 @@ package org.apache.karaf.jaas.modules.syncope;
 
 import org.apache.karaf.jaas.modules.BackingEngine;
 import org.apache.karaf.jaas.modules.BackingEngineFactory;
+import org.apache.karaf.jaas.modules.JAASUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,12 +29,13 @@ public class SyncopeBackingEngineFactory implements BackingEngineFactory {
 
     public BackingEngine build(Map<String, ?> options) {
         SyncopeBackingEngine instance = null;
-        String address = (String) options.get(SyncopeLoginModule.ADDRESS);
-        String adminUser = (String) options.get(SyncopeLoginModule.ADMIN_USER);
-        String adminPassword = (String) options.get(SyncopeLoginModule.ADMIN_PASSWORD);
+        String address = JAASUtils.getString(options, SyncopeLoginModule.ADDRESS);
+        String adminUser = JAASUtils.getString(options, SyncopeLoginModule.ADMIN_USER);
+        String adminPassword = JAASUtils.getString(options, SyncopeLoginModule.ADMIN_PASSWORD);
+        String version = JAASUtils.getString(options, SyncopeLoginModule.VERSION);
 
         try {
-            instance = new SyncopeBackingEngine(address, adminUser, adminPassword);
+            instance = new SyncopeBackingEngine(address, version, adminUser, adminPassword);
         } catch (Exception e) {
             LOGGER.error("Error creating the Syncope backing engine", e);
         }

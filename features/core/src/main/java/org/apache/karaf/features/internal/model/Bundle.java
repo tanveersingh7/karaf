@@ -16,10 +16,12 @@
  */
 package org.apache.karaf.features.internal.model;
 
+import java.util.Objects;
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlSchemaType;
+import javax.xml.bind.annotation.XmlTransient;
 import javax.xml.bind.annotation.XmlType;
 import javax.xml.bind.annotation.XmlValue;
 
@@ -53,13 +55,19 @@ public class Bundle implements BundleInfo {
     @XmlValue
     @XmlSchemaType(name = "anyURI")
     protected String value;
+    /** Original value may be queried if {@link #isOverriden()} is <code>true</code> */
+    @XmlTransient
+    protected String originalValue;
     @XmlAttribute(name = "start-level")
     protected Integer startLevel;
     @XmlAttribute
     protected Boolean start; // = true;
     @XmlAttribute
     protected Boolean dependency;
-
+    @XmlTransient
+    private boolean blacklisted = false;
+    @XmlTransient
+    private BundleInfo.BundleOverrideMode overriden = BundleInfo.BundleOverrideMode.NONE;
 
     public Bundle() {
     }
@@ -149,6 +157,33 @@ public class Bundle implements BundleInfo {
     }
 
     @Override
+    public boolean isBlacklisted() {
+        return blacklisted;
+    }
+
+    public void setBlacklisted(boolean blacklisted) {
+        this.blacklisted = blacklisted;
+    }
+
+    @Override
+    public BundleInfo.BundleOverrideMode isOverriden() {
+        return overriden;
+    }
+
+    public void setOverriden(BundleInfo.BundleOverrideMode overriden) {
+        this.overriden = overriden;
+    }
+
+    @Override
+    public String getOriginalLocation() {
+        return originalValue;
+    }
+
+    public void setOriginalLocation(String originalLocation) {
+        this.originalValue = originalLocation;
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
@@ -167,7 +202,7 @@ public class Bundle implements BundleInfo {
         if ((startLevel != null ? startLevel : 0) != (bundle.startLevel != null ? bundle.startLevel : 0)) {
             return false;
         }
-        return value != null ? value.equals(bundle.value) : bundle.value == null;
+        return Objects.equals(value, bundle.value);
     }
 
     @Override

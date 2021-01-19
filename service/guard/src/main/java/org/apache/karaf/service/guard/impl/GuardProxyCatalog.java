@@ -169,12 +169,7 @@ public class GuardProxyCatalog implements ServiceListener {
 
     private void handleOriginalServiceUnregistering(Long orgServiceID) {
         // If the service queued up to be proxied, remove it.
-        for (Iterator<CreateProxyRunnable> i = createProxyQueue.iterator(); i.hasNext(); ) {
-            CreateProxyRunnable cpr = i.next();
-            if (orgServiceID.equals(cpr.getOriginalServiceID())) {
-                i.remove();
-            }
-        }
+        createProxyQueue.removeIf(cpr -> orgServiceID.equals(cpr.getOriginalServiceID()));
 
         ServiceRegistrationHolder holder = proxyMap.remove(orgServiceID);
         if (holder != null) {
@@ -311,7 +306,7 @@ public class GuardProxyCatalog implements ServiceListener {
         // This can probably be optimized. Maybe we can cache the config object relevant instead of
         // walking through all of the ones that have 'service.guard'.
         for (Configuration config : getServiceGuardConfigs()) {
-            Dictionary<String, Object> properties = config.getProperties();
+            Dictionary<String, Object> properties = config.getProcessedProperties(null);
             Object guardFilter = properties.get(SERVICE_GUARD_KEY);
             if (guardFilter instanceof String) {
                 Filter filter = getFilter((String) guardFilter);

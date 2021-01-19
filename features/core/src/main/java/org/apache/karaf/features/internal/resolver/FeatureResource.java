@@ -19,6 +19,8 @@ package org.apache.karaf.features.internal.resolver;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.felix.utils.resource.ResourceBuilder;
+import org.apache.felix.utils.resource.ResourceImpl;
 import org.apache.felix.utils.version.VersionRange;
 import org.apache.felix.utils.version.VersionTable;
 import org.apache.karaf.features.BundleInfo;
@@ -34,6 +36,12 @@ import static org.apache.karaf.features.internal.resolver.ResourceUtils.TYPE_FEA
 import static org.apache.karaf.features.internal.resolver.ResourceUtils.addIdentityRequirement;
 
 /**
+ * An OSGi {@link Resource} representing Karaf feature. It has requirements on all its non-dependency
+ * (<code>dependency="false"</code>) bundles.
+ * It'll also use arbitrary capabilities ({@code <feature>/<capability>}) and requirements
+ * ({@code <feature>/<requirement>}).
+ * Dependant features ({@code <feature>/<feature>}) without <code>dependency="true"</code> will also be added
+ * as <code>osgi.identity</code> requirements with <code>type=karaf.feature</code>.
  */
 public final class FeatureResource extends ResourceImpl {
 
@@ -46,15 +54,24 @@ public final class FeatureResource extends ResourceImpl {
         this.feature = feature;
     }
 
+    /**
+     * Constructs a {@link Resource} for conditional of a feature.
+     */
     public static FeatureResource build(Feature feature, Conditional conditional, String featureRange, Map<String, ? extends Resource> locToRes) throws BundleException {
         Feature fcond = conditional.asFeature();
         FeatureResource resource = build(fcond, featureRange, locToRes);
         for (String cond : conditional.getCondition()) {
             if (cond.startsWith("req:")) {
+                // <conditional>/<condition>req:xxx</condition>
+                // conditional feature will require all its bundles and will have all declared, generic
+                // requirements
                 cond = cond.substring("req:".length());
                 List<Requirement> reqs = ResourceBuilder.parseRequirement(resource, cond);
                 resource.addRequirements(reqs);
             } else {
+                // <conditional>/<condition>xxx</condition>
+                // conditional feature will require all its bundles and will require the features that are the
+                // conditions with "condition:=true" directive
                 org.apache.karaf.features.internal.model.Dependency dep = new org.apache.karaf.features.internal.model.Dependency();
                 String[] p = cond.split("/");
                 dep.setName(p[0]);
@@ -67,14 +84,18 @@ public final class FeatureResource extends ResourceImpl {
         org.apache.karaf.features.internal.model.Dependency dep = new org.apache.karaf.features.internal.model.Dependency();
         dep.setName(feature.getName());
         dep.setVersion(feature.getVersion());
+        // conditional feature will also require parent feature - also with "condition:=true" directive
         addDependency(resource, dep, featureRange, true);
         return resource;
     }
 
+    /**
+     * Constructs {@link Resource} for given non-conditional feature.
+     */
     public static FeatureResource build(Feature feature, String featureRange, Map<String, ? extends Resource> locToRes) throws BundleException {
         FeatureResource resource = new FeatureResource(feature);
         for (BundleInfo info : feature.getBundles()) {
-            if (!info.isDependency()) {
+            if (!info.isDependency() && !info.isBlacklisted()) {
                 Resource res = locToRes.get(info.getLocation());
                 if (res == null) {
                     throw new IllegalStateException("Resource not found for url " + info.getLocation());
@@ -83,7 +104,7 @@ public final class FeatureResource extends ResourceImpl {
             }
         }
         for (Dependency dep : feature.getDependencies()) {
-            if (!dep.isDependency()) {
+            if (!dep.isDependency() && !dep.isBlacklisted()) {
                 addDependency(resource, dep, featureRange);
             }
         }

@@ -17,7 +17,7 @@
 Apache Karaf natively provides a failover mechanism. It uses a kind of master/slave topology where one instance is active
 and the others are in standby.
 
-If you are looking for cluster of Apache Karaf instances (active/active), [Apache Karaf Cellar|http://karaf.apache.org/index/subprojects/cellar.html] is a solution.
+If you are looking for cluster of Apache Karaf instances (active/active), link:https://karaf.apache.org/projects.html[Apache Karaf Cellar] is a solution.
 
 Karaf provides failover capability using either a simple lock file or a JDBC locking mechanism.
 In both cases, a container-level lock system allows bundles to be preloaded into the slave Karaf instance in order to provide faster failover performance.
@@ -83,13 +83,15 @@ karaf.lock.jdbc.password=password
 karaf.lock.jdbc.table=KARAF_LOCK
 karaf.lock.jdbc.clustername=karaf
 karaf.lock.jdbc.timeout=30
+karaf.lock.lostThreshold=0
 ----
 
 * `karaf.lock` property enabled the HA/failover mechanism
 * `karaf.lock.class` property contains the class name providing the lock implementation. The `org.apache.karaf.main.lock.DefaultJDBCLock`
- is the most generic database lock system implementation. Apache Karaf supports lock system for specific databases (see later for details).
+ is the most generic database lock system implementation. Apache Karaf supports lock systems for specific databases (see later for details).
 * `karaf.lock.level` property is the container-level locking (see later for details).
 * `karaf.lock.delay` property is the interval period (in milliseconds) to check if the lock has been released or not.
+* `karaf.lock.lostThreshold` property is the count of attempts to re-acquire the lock before shutting down.
 * `karaf.lock.jdbc.url` property contains the JDBC URL to the database (derby in this example).
 * `karaf.lock.jdbc.driver` property contains the class name of the JDBC driver to use (derby in this example).
 * `karaf.lock.jdbc.user` property contains the username to use to connect to the database.
@@ -110,7 +112,7 @@ The `sample` database will be created automatically if it does not exist.
 [NOTE]
 ====
 If the connection to the database is lost, the master instance tries to gracefully shutdown, allowing a slave instance to
-become the master when the database is back. The former master instance will required a manual restart.
+become the master when the database is back. The former master instance will require a manual restart.
 ====
 
 *Lock on Oracle*
@@ -244,12 +246,12 @@ As reminder, the bundles start levels are specified in `etc/startup.properties`,
 
 [NOTE]
 ====
-Using 'hot' standby means that the slave instances are running and bind some ports. So, if you use master and slave instances on the same machine, you have
+Using 'hot' standby means that the slave instances are running and bound to some ports. So, if you use master and slave instances on the same machine, you have
 to update the slave configuration to bind the services (ssh, JMX, etc) on different port numbers.
 ====
 
 ===== Cluster (active/active)
 
-Apache Karaf doesn't natively support cluster. By cluster, we mean several active instances, synchronized with each other.
+Apache Karaf doesn't natively support clustering. By cluster, we mean several active instances, synchronized with each other.
 
 However, http://karaf.apache.org/index/subprojects/cellar.html[Apache Karaf Cellar] can be installed to provide cluster support.

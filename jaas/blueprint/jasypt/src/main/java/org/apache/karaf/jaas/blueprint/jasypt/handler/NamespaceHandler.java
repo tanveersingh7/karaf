@@ -15,7 +15,7 @@
 package org.apache.karaf.jaas.blueprint.jasypt.handler;
 
 import java.net.URL;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -52,16 +52,24 @@ public class NamespaceHandler implements org.apache.aries.blueprint.NamespaceHan
 
     private int idCounter;
 
-    public URL getSchemaLocation(String s) {
-        return getClass().getResource("/org/apache/karaf/jaas/blueprint/jasypt/handler/karaf-jasypt-1.0.0.xsd");
+    @Override
+    public URL getSchemaLocation(String namespace) {
+        switch (namespace) {
+            case "http://karaf.apache.org/xmlns/jasypt/v1.0.0":
+                return getClass().getResource("/org/apache/karaf/jaas/blueprint/jasypt/handler/karaf-jasypt-1.0.0.xsd");
+            default:
+                return null;
+        }
     }
 
+    @Override
     public Set<Class> getManagedClasses() {
-        return new HashSet<>(Arrays.asList(
-                EncryptablePropertyPlaceholder.class
+        return new HashSet<>(Collections.singletonList(
+            EncryptablePropertyPlaceholder.class
         ));
     }
 
+    @Override
     public Metadata parse(Element element, ParserContext context) {
         String name = element.getLocalName() != null ? element.getLocalName() : element.getNodeName();
         if (PROPERTY_PLACEHOLDER_ELEMENT.equals(name)) {
@@ -70,6 +78,7 @@ public class NamespaceHandler implements org.apache.aries.blueprint.NamespaceHan
         throw new ComponentDefinitionException("Bad xml syntax: unknown element '" + name + "'");
     }
 
+    @Override
     public ComponentMetadata decorate(Node node, ComponentMetadata componentMetadata, ParserContext parserContext) {
         throw new ComponentDefinitionException("Bad xml syntax: node decoration is not supported");
     }
@@ -160,7 +169,7 @@ public class NamespaceHandler implements org.apache.aries.blueprint.NamespaceHan
     }
 
     private static String getTextValue(Element element) {
-        StringBuffer value = new StringBuffer();
+        StringBuilder value = new StringBuilder();
         NodeList nl = element.getChildNodes();
         for (int i = 0; i < nl.getLength(); i++) {
             Node item = nl.item(i);

@@ -31,10 +31,16 @@ up HTTPS connectors or using certificates for WS-Security.
 
 A very simple XML schema for spring has been defined, allowing the deployment of a new realm or a new keystore very easily.
 
-==== Schema
+==== Schema and Deployer
 
-To override or deploy a new realm, you can use the following XSD which is supported by a Spring namespace handler and
-can thus be defined in a Spring xml configuration file.
+To override or deploy a new realm, you can use the following XSD which is supported by a Blueprint namespace handler and
+can thus be defined in a Blueprint xml configuration file.
+You can directly create a XML file in the Apache Karaf `deploy` folder. To enable this JAAS config deployer, you have first
+to install the `jaas-deployer` feature:
+
+----
+karaf@root()> feature:install jaas-deployer
+----
 
 You can find the schema at the following http://karaf.apache.org/xmlns/jaas/v1.1.0
 
@@ -115,7 +121,7 @@ JMX layer), you need to deploy a JAAS configuration with the name `name="karaf"`
 ==== Architecture
 
 Due to constraints in the JAAS specification, one class has to be available for all bundles.
-This class is called ProxyLoginModule and is a LoginModule that acts as a proxy for an OSGi defines LoginModule.
+This class is called ProxyLoginModule and is a LoginModule that acts as a proxy for an OSGi defined LoginModule.
 If you plan to integrate this feature into another OSGi runtime, this class must be made available from the system
 classloader and the related package be part of the boot delegation classpath (or be deployed as a fragment attached to
 the system bundle).
@@ -128,10 +134,10 @@ the bundle containing the real login module.
 
 Karaf itself provides a set of login modules ready to use, depending of the authentication backend that you need.
 
-In addition of the login modules, Karaf also support backend engine. The backend engine is coupled to a login module and
+In addition to the login modules, Karaf also supports backend engines. The backend engine is coupled to a login module and
 allows you to manipulate users and roles directly from Karaf (adding a new user, delete an existing user, etc).
 The backend engine is constructed by a backend engine factory, registered as an OSGi service.
-Some login modules (for security reason for instance) don't provide backend engine.
+Some login modules (for security reasons for instance) don't provide backend engine.
 
 ==== Available realm and login modules
 
@@ -273,7 +279,7 @@ The data source and the queries for password and role retrieval are configurable
 |Name |Description
 
 |`datasource`
-|The datasource as on OSGi ldap filter or as JDNI name
+|The datasource as on OSGi ldap filter or as JNDI name
 
 |`query.password`
 |The SQL query that retries the password of the user
@@ -423,6 +429,9 @@ The LDAPLoginModule supports the following parameters:
 
 |`ssl.truststore`
 |The trust store name to use for SSL. The trust store must be deployed using a `jaas:keystore` configuration.
+
+|`ignorePartialResultException`
+|Workaround for Active Directory servers not handling referrals correctly. When the `context.java.naming.referral` parameter is `false` (as it is by default), this will prevent `PartialResultException`s from being thrown during enumeration of search results.
 |===
 
 A example of LDAPLoginModule usage follows:
@@ -847,7 +856,7 @@ The JAAS specification does not provide means to distinguish between User and Ro
 specification classes. In order to provide means to the application developer to decouple the application from Karaf
 JAAS implementation role policies have been created.
 
-A role policy is a convention that can be adopted by the application in order to identify Roles, without depending from the implementation.
+A role policy is a convention that can be adopted by the application in order to identify Roles, without depending on the implementation.
 Each role policy can be cofigured by setting a "role.policy" and "role.discriminator" property to the login module configuration.
 Currently, Karaf provides two policies that can be applied to all Karaf Login Modules.
 

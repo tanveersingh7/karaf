@@ -209,6 +209,9 @@ public class InfoFeatureCommand extends FeaturesCommandSupport {
                 if(startLevel > 0) {
                     sb.append(" start-level=").append(startLevel);
                 }
+                if (featureBundle.isOverriden() != BundleInfo.BundleOverrideMode.NONE) {
+                    sb.append(" (overriden from ").append(featureBundle.getOriginalLocation()).append(")");
+                }
                 System.out.println(sb.toString());
             }
         }
@@ -302,8 +305,7 @@ public class InfoFeatureCommand extends FeaturesCommandSupport {
                 if (conditional) {
                     for (Conditional cond : resolved.getConditional()) {
                         List<Dependency> conditionDependencies = cond.getDependencies();
-                        for (int i = 0, j = conditionDependencies.size(); i < j; i++) {
-                            Dependency toDisplay = dependencies.get(i);
+                        for (Dependency toDisplay : conditionDependencies) {
                             unresolved += displayFeatureTree(admin, toDisplay.getName(), toDisplay.getVersion(), prefix);
                         }
                     }
@@ -340,7 +342,7 @@ public class InfoFeatureCommand extends FeaturesCommandSupport {
     }
 
     private String getConditionDescription(Conditional cond) {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         for (String dep : cond.getCondition()) {
             if (sb.length() > 0) {
                 sb.append(" ");

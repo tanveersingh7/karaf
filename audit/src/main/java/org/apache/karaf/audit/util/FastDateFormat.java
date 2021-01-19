@@ -76,13 +76,17 @@ public class FastDateFormat {
             if (MMM_D2.equals(pattern)) {
                 StringBuffer sb = new StringBuffer();
                 FieldPosition fp = new FieldPosition(DateFormat.Field.DAY_OF_MONTH);
-                new SimpleDateFormat("MMM dd", locale).format(new Date(now), sb, fp);
+                SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", locale);
+                sdf.setCalendar(Calendar.getInstance(timeZone, locale));
+                sdf.format(new Date(now), sb, fp);
                 if (sb.charAt(fp.getBeginIndex()) == '0') {
                     sb.setCharAt(fp.getBeginIndex(), ' ');
                 }
                 date = sb.toString();
             } else {
-                date = new SimpleDateFormat(pattern, locale).format(new Date(now));
+                SimpleDateFormat sdf = new SimpleDateFormat(pattern, locale);
+                sdf.setCalendar(Calendar.getInstance(timeZone, locale));
+                date = sdf.format(new Date(now));
             }
             cache.put(pattern, date);
         }

@@ -25,6 +25,7 @@ import java.io.FileInputStream;
 import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
 
 /**
  * Create a heap dump.
@@ -41,7 +42,7 @@ public class HeapDumpProvider implements DumpProvider {
             Object diagnosticMXBean = ManagementFactory.newPlatformMXBeanProxy(mBeanServer,
                 "com.sun.management:type=HotSpotDiagnostic", diagnosticMXBeanClass);
 
-            heapDumpFile = File.createTempFile("heapdump", ".txt");
+            heapDumpFile = Files.createTempFile("heapdump", ".hprof").toFile();
             heapDumpFile.delete();
             
             Method method = diagnosticMXBeanClass.getMethod("dumpHeap", String.class, boolean.class);
@@ -49,7 +50,7 @@ public class HeapDumpProvider implements DumpProvider {
 
             // copy the dump in the destination
             in = new FileInputStream(heapDumpFile);
-            out = destination.add("heapdump.txt");
+            out = destination.add("heapdump.hprof");
             byte[] buffer = new byte[2048];
             int l;
             while (((l = in.read(buffer)) != -1)) {

@@ -46,14 +46,14 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOError;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.net.URL;
 import java.security.KeyPair;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -81,43 +81,66 @@ public class ClientMojo extends AbstractMojo {
     private int delay;
 
     @Parameter
-    private List<String> commands;
+    private List<CommandDescriptor> commands;
 
     @Parameter
-    private List<File> scripts;
+    private List<ScriptDescriptor> scripts;
 
     @Parameter
     private File keyFile;
 
+    @Parameter(property = "skip", defaultValue = "false")
+    private boolean skip;
+
     private static final String NEW_LINE = System.getProperty("line.separator");
 
     public void execute() throws MojoExecutionException {
-        // Add commands from scripts to already declared commands
+        if (skip || (System.getProperty("client.skip") != null && System.getProperty("client.skip").equalsIgnoreCase("true"))) {
+            getLog().info("Client execution is skipped");
+            return;
+        }
+        // ranking the commands and scripts
+        Comparator<CommandDescriptor> comparator = Comparator.comparingDouble(CommandDescriptor::getRank);
+        SortedSet<CommandDescriptor> sortedCommands = new TreeSet<>(comparator);
         if (scripts != null) {
-            for (File script : scripts) {
-                try (BufferedReader br = new BufferedReader(new FileReader(script))) {
+            for (ScriptDescriptor script : scripts) {
+                File file = script.getScript();
+                try (BufferedReader br = new BufferedReader(new FileReader(file))) {
                     String line;
+                    int lineIndex = 0;
                     while ((line = br.readLine()) != null) {
                         line = line.trim();
                         if (line.isEmpty()) {
                             continue;
                         }
-                        commands.add(line);
+                        CommandDescriptor descriptor = new CommandDescriptor();
+                        descriptor.setCommand(line);
+                        double rankSuffix = 0.5;
+                        for (int j = 0; j < lineIndex; j++) {
+                            rankSuffix = rankSuffix + 0.00001;
+                        }
+                        descriptor.setRank(script.getRank() + rankSuffix);
+                        lineIndex++;
+                        sortedCommands.add(descriptor);
                     }
                 } catch (Exception e) {
                     throw new MojoExecutionException(e, e.getMessage(), e.toString());
                 }
             }
         }
+        if (commands != null) {
+            sortedCommands.addAll(commands);
+        }
 
-        if (commands == null || commands.isEmpty()) {
-            getLog().warn("No OSGi command was specified");
+        if (sortedCommands == null || sortedCommands.isEmpty()) {
+            getLog().warn("No command specified");
             return;
         }
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw, true);
-        for (String cmd : commands) {
+        for (CommandDescriptor command : sortedCommands) {
+            String cmd = command.getCommand();
             getLog().info(cmd);
             pw.println(cmd);
         }
@@ -216,23 +239,18 @@ public class ClientMojo extends AbstractMojo {
     }
 
     private void setupAgent(String user, File keyFile, SshClient client) {
-        URL builtInPrivateKey = ClientMojo.class.getClassLoader().getResource("karaf.key");
-        SshAgent agent = startAgent(user, builtInPrivateKey, keyFile);
+        SshAgent agent = startAgent(user, keyFile);
         client.setAgentFactory( new LocalAgentFactory(agent));
         client.getProperties().put(SshAgent.SSH_AUTHSOCKET_ENV_NAME, "local");
     }
 
-    private SshAgent startAgent(String user, URL privateKeyUrl, File keyFile) {
-        try (InputStream is = privateKeyUrl.openStream())
+    private SshAgent startAgent(String user, File keyFile) {
+        try
         {
             SshAgent agent = new AgentImpl();
-            ObjectInputStream r = new ObjectInputStream(is);
-            KeyPair keyPair = (KeyPair) r.readObject();
-            is.close();
-            agent.addIdentity(keyPair, user);
             if (keyFile != null) {
                 FileKeyPairProvider fileKeyPairProvider = new FileKeyPairProvider(keyFile.getAbsoluteFile().toPath());
-                for (KeyPair key : fileKeyPairProvider.loadKeys()) {
+                for (KeyPair key : fileKeyPairProvider.loadKeys(null)) {
                     agent.addIdentity(key, user);
                 }
             }

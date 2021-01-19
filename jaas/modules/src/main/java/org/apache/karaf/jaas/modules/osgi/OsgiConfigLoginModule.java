@@ -33,7 +33,7 @@ import javax.security.auth.login.LoginException;
 import org.apache.karaf.jaas.boot.principal.RolePrincipal;
 import org.apache.karaf.jaas.boot.principal.UserPrincipal;
 import org.apache.karaf.jaas.modules.AbstractKarafLoginModule;
-
+import org.apache.karaf.jaas.modules.JAASUtils;
 import org.osgi.service.cm.Configuration;
 
 public class OsgiConfigLoginModule extends AbstractKarafLoginModule {
@@ -47,9 +47,9 @@ public class OsgiConfigLoginModule extends AbstractKarafLoginModule {
 
     public boolean login() throws LoginException {
         try {
-            String pid = (String) options.get(PID);
+            String pid = JAASUtils.getString(options, PID);
             Configuration config = ConfigAdminHolder.getService().getConfiguration(pid, null);
-            Dictionary<String, Object> properties = config.getProperties();
+            Dictionary<String, Object> properties = config.getProcessedProperties(null);
 
             Callback[] callbacks = new Callback[2];
 
@@ -91,6 +91,7 @@ public class OsgiConfigLoginModule extends AbstractKarafLoginModule {
                 principals.add(new RolePrincipal(infos[i]));
             }
 
+            succeeded = true;
             return true;
         } catch (LoginException e) {
             throw e;
@@ -99,24 +100,6 @@ public class OsgiConfigLoginModule extends AbstractKarafLoginModule {
         } finally {
             callbackHandler = null;
             options = null;
-        }
-    }
-
-
-    public boolean abort() throws LoginException {
-        subject = null;
-        principals = null;
-        return true;
-    }
-
-    public boolean logout() throws LoginException {
-        try {
-            subject.getPrincipals().removeAll(principals);
-            principals.clear();
-            return true;
-        } finally {
-            subject = null;
-            principals = null;
         }
     }
 

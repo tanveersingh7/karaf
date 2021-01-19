@@ -26,6 +26,7 @@ import java.util.Objects;
 import org.apache.karaf.features.Feature;
 import org.apache.karaf.features.Repository;
 import org.apache.karaf.features.internal.model.Features;
+import org.apache.karaf.features.internal.model.JacksonUtil;
 import org.apache.karaf.features.internal.model.JaxbUtil;
 
 /**
@@ -33,28 +34,46 @@ import org.apache.karaf.features.internal.model.JaxbUtil;
  */
 public class RepositoryImpl implements Repository {
 
+    /** {@link URI original URI} of the resource where feature declarations were loaded from */
     private final URI uri;
-    private final Blacklist blacklist;
+
+    /** Transformed {@link Features model} of the repository */
     private Features features;
-    
+
+    private boolean blacklisted;
+
     public RepositoryImpl(URI uri) {
-        this(uri, null, false);
+        this(uri, false);
     }
 
-    public RepositoryImpl(URI uri, Blacklist blacklist, boolean validate) {
+    public RepositoryImpl(URI uri, boolean validate) {
         this.uri = uri;
-        this.blacklist = blacklist;
         load(validate);
     }
 
+    /**
+     * Constructs a repository without any downloading
+     * @param uri
+     * @param features
+     * @param blacklisted
+     */
+    public RepositoryImpl(URI uri, Features features, boolean blacklisted) {
+        this.uri = uri;
+        this.features = features;
+        this.blacklisted = blacklisted;
+    }
+
+    @Override
     public URI getURI() {
         return uri;
     }
 
+    @Override
     public String getName() {
         return features.getName();
     }
 
+    @Override
     public URI[] getRepositories() {
         return features.getRepository().stream()
                 .map(String::trim)
@@ -62,6 +81,7 @@ public class RepositoryImpl implements Repository {
                 .toArray(URI[]::new);
     }
 
+    @Override
     public URI[] getResourceRepositories() {
         return features.getResourceRepository().stream()
                 .map(String::trim)
@@ -69,23 +89,50 @@ public class RepositoryImpl implements Repository {
                 .toArray(URI[]::new);
     }
 
+    @Override
     public Feature[] getFeatures() {
         return features.getFeature()
                 .toArray(new Feature[features.getFeature().size()]);
     }
 
+    public Features getFeaturesInternal() {
+        return features;
+    }
+
+    @Override
+    public boolean isBlacklisted() {
+        return blacklisted;
+    }
+
+    public void setBlacklisted(boolean blacklisted) {
+        this.blacklisted = blacklisted;
+        features.setBlacklisted(blacklisted);
+    }
 
     private void load(boolean validate) {
         if (features == null) {
-            try (
-                    InputStream inputStream = new InterruptibleInputStream(uri.toURL().openStream())
-            ) {
-                features = JaxbUtil.unmarshal(uri.toASCIIString(), inputStream, validate);
-                if (blacklist != null) {
-                    blacklist.blacklist(features);
+            try (InputStream inputStream = new InterruptibleInputStream(uri.toURL().openStream())) {
+                if (JacksonUtil.isJson(uri.toASCIIString())) {
+                    features = JacksonUtil.unmarshal(uri.toASCIIString());
+                } else {
+                    features = JaxbUtil.unmarshal(uri.toASCIIString(), inputStream, validate);
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e.getMessage() + " : " + uri, e);
+            }
+        }
+    }
+
+    /**
+     * An extension point to alter {@link Features JAXB model of features}
+     * @param processor
+     */
+    public void processFeatures(FeaturesProcessor processor) {
+        processor.process(features);
+        if (blacklisted) {
+            // all features of blacklisted repository are blacklisted too
+            for (org.apache.karaf.features.internal.model.Feature feature : features.getFeature()) {
+                feature.setBlacklisted(true);
             }
         }
     }
@@ -121,5 +168,5 @@ public class RepositoryImpl implements Repository {
     public String toString() {
         return getURI().toString();
     }
-}
 
+}

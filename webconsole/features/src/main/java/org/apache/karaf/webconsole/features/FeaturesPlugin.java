@@ -23,6 +23,7 @@ import java.io.PrintWriter;
 import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -310,9 +311,7 @@ public class FeaturesPlugin extends AbstractWebConsolePlugin {
         }
 
         try {
-            for (Repository r : featuresService.listRepositories()) {
-                repositories.add(r);
-            }
+            repositories.addAll(Arrays.asList(featuresService.listRepositories()));
         } catch (Exception e) {
             this.log.error(e.getMessage());
         }
@@ -340,7 +339,7 @@ public class FeaturesPlugin extends AbstractWebConsolePlugin {
             this.log.error(e.getMessage());
         }
 
-        Collections.sort(features, new ExtendedFeatureComparator());
+        features.sort(new ExtendedFeatureComparator());
         return features;
     }
 
@@ -358,7 +357,7 @@ public class FeaturesPlugin extends AbstractWebConsolePlugin {
                 installed++;
             }
         }
-        final StringBuffer buffer = new StringBuffer();
+        final StringBuilder buffer = new StringBuilder();
         buffer.append("Feature information: ");
         appendFeatureInfoCount(buffer, "in total", features.size());
         if (installed == features.size()) {
@@ -374,7 +373,7 @@ public class FeaturesPlugin extends AbstractWebConsolePlugin {
         return buffer.toString();
     }
 
-    private void appendFeatureInfoCount(final StringBuffer buf, String msg, int count) {
+    private void appendFeatureInfoCount(final StringBuilder buf, String msg, int count) {
         buf.append(count);
         buf.append(" feature");
         if (count != 1)

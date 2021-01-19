@@ -34,6 +34,7 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -44,6 +45,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -51,6 +53,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.felix.utils.version.VersionCleaner;
+import org.apache.karaf.features.BundleInfo;
 import org.apache.karaf.features.DeploymentEvent;
 import org.apache.karaf.features.DeploymentListener;
 import org.apache.karaf.features.Feature;
@@ -63,6 +66,7 @@ import org.apache.karaf.features.RepositoryEvent;
 import org.apache.karaf.features.internal.download.DownloadManager;
 import org.apache.karaf.features.internal.download.DownloadManagers;
 import org.apache.karaf.features.internal.model.Features;
+import org.apache.karaf.features.internal.model.JacksonUtil;
 import org.apache.karaf.features.internal.model.JaxbUtil;
 import org.apache.karaf.features.internal.region.DigraphHelper;
 import org.apache.karaf.features.internal.service.BundleInstallSupport.FrameworkInfo;
@@ -110,7 +114,8 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
     private final Resolver resolver;
     private final BundleInstallSupport installSupport;
     private final FeaturesServiceConfig cfg;
-    private final RepositoryCache repositories;
+    private RepositoryCache repositories;
+    private FeaturesProcessor featuresProcessor;
 
     private final ThreadLocal<String> outputFile = new ThreadLocal<>();
 
@@ -125,6 +130,9 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
 
     // Synchronized on lock
     private final Object lock = new Object();
+    /**
+     * {@link State} persisted to data directory of features.core bundle.
+     */
     private final State state = new State();
 
     private final ExecutorService executor;
@@ -146,8 +154,8 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
         this.resolver = resolver;
         this.installSupport = installSupport;
         this.globalRepository = globalRepository;
-        Blacklist blacklist = new Blacklist(cfg.blacklisted);
-        this.repositories = new RepositoryCache(blacklist);
+        this.featuresProcessor = new FeaturesProcessorImpl(cfg);
+        this.repositories = new RepositoryCacheImpl(featuresProcessor);
         this.cfg = cfg;
         this.executor = Executors.newSingleThreadExecutor(ThreadUtils.namedThreadFactory("features"));
         loadState();
@@ -224,7 +232,7 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
                 // Make sure we don't store bundle checksums if
                 // it has been disabled through configadmin
                 // so that we don't keep out-of-date checksums.
-                if (!UPDATE_SNAPSHOTS_CRC.equalsIgnoreCase(cfg.updateSnapshots)) {
+                if (!SnapshotUpdateBehavior.Crc.getValue().equalsIgnoreCase(cfg.updateSnapshots)) {
                     state.bundleChecksums.clear();
                 }
                 storage.save(state);
@@ -256,11 +264,11 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
     public void registerListener(FeaturesListener listener) {
         listeners.add(listener);
         try {
-            Set<String> repositoriesList = new TreeSet<>();
-            Map<String, Set<String>> installedFeatures = new TreeMap<>();
+            Set<String> repositoriesList;
+            Map<String, Set<String>> installedFeatures;
             synchronized (lock) {
-                repositoriesList.addAll(state.repositories);
-                installedFeatures.putAll(copy(state.installedFeatures));
+                repositoriesList = new TreeSet<>(state.repositories);
+                installedFeatures = new TreeMap<>(copy(state.installedFeatures));
             }
             for (String uri : repositoriesList) {
                 Repository repository = repositories.create(URI.create(uri), false);
@@ -347,8 +355,25 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
     //
 
     @Override
+    public Feature[] repositoryProvidedFeatures(URI uri) throws Exception {
+        Features features;
+        if (JacksonUtil.isJson(uri.toURL().toExternalForm())) {
+            features = JacksonUtil.unmarshal(uri.toURL().toExternalForm());
+        } else {
+            features = JaxbUtil.unmarshal(uri.toURL().toExternalForm(), true);
+        }
+        Feature[] array = new Feature[features.getFeature().size()];
+        return features.getFeature().toArray(array);
+    }
+
+    @Override
     public void validateRepository(URI uri) throws Exception {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean isRepositoryUriBlacklisted(URI uri) {
+        return featuresProcessor.isRepositoryBlacklisted(uri.toString());
     }
 
     @Override
@@ -404,7 +429,11 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
             for (String r : state.repositories) {
                 if (!uri.toString().equals(r)) {
                     Repository rep = repositories.getRepository(r);
-                    repos.addAll(repositories.getRepositoryClosure(rep));
+                    if (rep != null) {
+                        repos.addAll(repositories.getRepositoryClosure(rep));
+                    } else {
+                        throw new IllegalArgumentException("Repository URI " + uri + " seems to have changed, can't remove repository");
+                    }
                 }
             }
             for (Repository rep : repos) {
@@ -773,9 +802,19 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
         Set<FeatureReq> existingFeatures = map(requirements, FeatureReq::parseRequirement);
 
         Set<FeatureReq> toAdd = computeFeaturesToAdd(options, toInstall);
-        toAdd.forEach(f -> requirements.add(f.toRequirement()));
-        print("Adding features: " + join(toAdd), options.contains(Option.Verbose));
-        
+        toAdd.forEach(f -> {
+            if (f.isBlacklisted()) {
+                print("Skipping blacklisted feature: " + f, options.contains(Option.Verbose));
+            } else {
+                requirements.add(f.toRequirement());
+            }
+        });
+        List<FeatureReq> notBlacklisted = toAdd.stream()
+                .filter(fr -> !fr.isBlacklisted()).collect(Collectors.toList());
+        if (notBlacklisted.size() > 0) {
+            print("Adding features: " + join(notBlacklisted), options.contains(Option.Verbose));
+        }
+
         if (options.contains(Option.Upgrade)) {
             Set<FeatureReq> toRemove = computeFeaturesToRemoveOnUpdate(toAdd, existingFeatures);
             toRemove.forEach(f -> requirements.remove(f.toRequirement()));
@@ -888,7 +927,7 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
             saveState();
             stateCopy = state.copy();
         }
-        doProvisionInThread(requirements, emptyMap(), stateCopy, getFeaturesById(), options);
+        doProvisionInThread(requirements, emptyMap(), stateCopy, getFeaturesById(), options, false);
     }
 
     @Override
@@ -936,13 +975,38 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
                                     final State state,
                                     final Map<String, Feature> featureById,
                                     final EnumSet<Option> options) throws Exception {
+        doProvisionInThread(requirements, stateChanges, state, featureById, options, true);
+    }
+
+    /**
+     * Actual deployment needs to be done in a separate thread.
+     * The reason is that if the console is refreshed, the current thread which is running
+     * the command may be interrupted while waiting for the refresh to be done, leading
+     * to bundles not being started after the refresh.
+     *
+     * @param requirements the provided requirements to match.
+     * @param stateChanges the current features state.
+     * @param state the current provisioning state.
+     * @param options the provisioning options.
+     * @param wait wait for provisioning to complete
+     * @throws Exception in case of provisioning failure.
+     */
+    private void doProvisionInThread(final Map<String, Set<String>> requirements,
+                                     final Map<String, Map<String, FeatureState>> stateChanges,
+                                     final State state,
+                                     final Map<String, Feature> featureById,
+                                     final EnumSet<Option> options,
+                                     boolean wait) throws Exception {
         try {
             final String outputFile = this.outputFile.get();
             this.outputFile.set(null);
-            executor.submit(() -> {
+            Future<Object> future = executor.submit(() -> {
                 doProvision(requirements, stateChanges, state, featureById, options, outputFile);
                 return null;
-            }).get();
+            });
+            if (wait) {
+                future.get();
+            }
         } catch (ExecutionException e) {
             Throwable t = e.getCause();
             if (t instanceof RuntimeException) {
@@ -962,11 +1026,12 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
         dstate.state = state;
         FrameworkInfo info = installSupport.getInfo();
         dstate.serviceBundle = info.ourBundle;
+        dstate.configadminBundle = info.cmBundle;
         dstate.initialBundleStartLevel = info.initialBundleStartLevel;
         dstate.currentStartLevel = info.currentStartLevel;
         dstate.bundles = info.bundles;
         // Features
-        dstate.features = featuresById;
+        dstate.partitionFeatures(featuresById.values());
         RegionDigraph regionDigraph = installSupport.getDiGraphCopy();
         dstate.bundlesPerRegion = DigraphHelper.getBundlesPerRegion(regionDigraph);
         dstate.filtersPerRegion = DigraphHelper.getPolicies(regionDigraph);
@@ -974,13 +1039,12 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
     }
 
     private Deployer.DeploymentRequest getDeploymentRequest(Map<String, Set<String>> requirements, Map<String, Map<String, FeatureState>> stateChanges, EnumSet<Option> options, String outputFile) {
-        Deployer.DeploymentRequest request = new Deployer.DeploymentRequest();
+        Deployer.DeploymentRequest request = Deployer.DeploymentRequest.defaultDeploymentRequest();
         request.bundleUpdateRange = cfg.bundleUpdateRange;
         request.featureResolutionRange = cfg.featureResolutionRange;
-        request.serviceRequirements = cfg.serviceRequirements;
-        request.updateSnaphots = cfg.updateSnapshots;
+        request.serviceRequirements = ServiceRequirementsBehavior.fromString(cfg.serviceRequirements);
+        request.updateSnaphots = SnapshotUpdateBehavior.fromString(cfg.updateSnapshots);
         request.globalRepository = globalRepository;
-        request.overrides = Overrides.loadOverrides(cfg.overrides);
         request.requirements = requirements;
         request.stateChanges = stateChanges;
         request.options = options;
@@ -1010,6 +1074,10 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
                     } else {
                         throw new Exception("Deployment aborted due to loop in missing prerequisites: " + e.getMissing());
                     }
+                } catch (Throwable t) {
+                    // Print stack trace to stdout, there may be no log anymore
+                    t.printStackTrace();
+                    throw t;
                 }
             }
         }
@@ -1028,7 +1096,7 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
         if (configurationAdmin != null) {
             Configuration config = configurationAdmin.getConfiguration("org.ops4j.pax.url.mvn", null);
             if (config != null) {
-                Dictionary<String, Object> cfg = config.getProperties();
+                Dictionary<String, Object> cfg = config.getProcessedProperties(null);
                 if (cfg != null) {
                     for (Enumeration<String> e = cfg.keys(); e.hasMoreElements(); ) {
                         String key = e.nextElement();
@@ -1117,8 +1185,18 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
     }
 
     @Override
+    public void deleteConfigs(Feature feature) throws IOException, InvalidSyntaxException {
+        installSupport.deleteConfigs(feature);
+    }
+
+    @Override
     public void installLibraries(Feature feature) throws IOException {
         installSupport.installLibraries(feature);
+    }
+
+    @Override
+    public void bundleBlacklisted(BundleInfo bundleInfo) {
+
     }
 
     private String join(Collection<FeatureReq> reqs) {
@@ -1142,4 +1220,19 @@ public class FeaturesServiceImpl implements FeaturesService, Deployer.DeployCall
             return null;
         }
     }
+
+    @Override
+    public void refreshFeatures(EnumSet<Option> options) throws Exception {
+        Set<URI> uris = new LinkedHashSet<>();
+        for (Repository r : this.repositories.listRepositories()) {
+            uris.add(r.getURI());
+        }
+        this.refreshRepositories(uris);
+        this.featuresProcessor = new FeaturesProcessorImpl(cfg);
+        this.repositories = new RepositoryCacheImpl(featuresProcessor);
+
+        State state = copyState();
+        doProvisionInThread(state.requirements, emptyMap(), state, getFeaturesById(), options);
+    }
+
 }

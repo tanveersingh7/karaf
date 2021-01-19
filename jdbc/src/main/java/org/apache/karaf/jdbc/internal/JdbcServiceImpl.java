@@ -93,16 +93,42 @@ public class JdbcServiceImpl implements JdbcService {
     @Override
     public List<String> datasources() throws Exception {
         List<String> datasources = new ArrayList<>();
-        Collection<ServiceReference<DataSource>> references = bundleContext.getServiceReferences(DataSource.class, null);
-        if (references == null) {
-            return datasources;
-        }
-        for (ServiceReference reference : references) {
-            String dsName = (String)reference.getProperty(DataSourceFactory.JDBC_DATASOURCE_NAME);
-            if (dsName != null) {
-                datasources.add(dsName);
+
+        ServiceReference<?>[] references = bundleContext.getServiceReferences((String) null,
+                "(|(" + Constants.OBJECTCLASS + "=" + DataSource.class.getName() + ")("
+                        + Constants.OBJECTCLASS + "=" + XADataSource.class.getName() + "))");
+        if (references != null) {
+            for (ServiceReference reference : references) {
+                if (reference.getProperty("osgi.jndi.service.name") != null) {
+                    datasources.add(reference.getProperty("osgi.jndi.service.name").toString());
+                } else if (reference.getProperty("datasource") != null) {
+                    datasources.add(reference.getProperty("datasource").toString());
+                } else if (reference.getProperty("name") != null) {
+                    datasources.add(reference.getProperty("name").toString());
+                } else if (reference.getProperty(DataSourceFactory.JDBC_DATASOURCE_NAME) != null) {
+                    datasources.add(reference.getProperty(DataSourceFactory.JDBC_DATASOURCE_NAME).toString());
+                } else {
+                    datasources.add(reference.getProperty(Constants.SERVICE_ID).toString());
+                }
             }
         }
+
+        return datasources;
+    }
+
+    @Override
+    public List<Long> datasourceServiceIds() throws Exception {
+        List<Long> datasources = new ArrayList<>();
+
+        ServiceReference<?>[] references = bundleContext.getServiceReferences((String) null,
+                "(|(" + Constants.OBJECTCLASS + "=" + DataSource.class.getName() + ")("
+                        + Constants.OBJECTCLASS + "=" + XADataSource.class.getName() + "))");
+        if (references != null) {
+            for (ServiceReference reference : references) {
+                datasources.add((Long) reference.getProperty(Constants.SERVICE_ID));
+            }
+        }
+
         return datasources;
     }
 
@@ -153,9 +179,21 @@ public class JdbcServiceImpl implements JdbcService {
 
     @Override
     public Map<String, String> info(String datasource) throws Exception {
-        try (JdbcConnector jdbcConnector = new JdbcConnector(bundleContext, lookupDataSource(datasource))) {
+        ServiceReference<?> reference = lookupDataSource(datasource);
+        String dsName = datasource;
+        if (reference.getProperty("osgi.jndi.service.name") != null) {
+            dsName = (String) reference.getProperty("osgi.jndi.service.name");
+        } else if (reference.getProperty("datasource") != null) {
+            dsName = (String) reference.getProperty("datasource");
+        } else if (reference.getProperty("name") != null) {
+            dsName = (String) reference.getProperty("name");
+        }
+
+        try (JdbcConnector jdbcConnector = new JdbcConnector(bundleContext, reference)) {
             DatabaseMetaData dbMetaData = jdbcConnector.connect().getMetaData();
             Map<String, String> map = new HashMap<>();
+            map.put("name", dsName);
+            map.put("service.id", reference.getProperty(Constants.SERVICE_ID).toString());
             map.put("db.product", dbMetaData.getDatabaseProductName());
             map.put("db.version", dbMetaData.getDatabaseProductVersion());
             map.put("url", dbMetaData.getURL());
@@ -194,7 +232,7 @@ public class JdbcServiceImpl implements JdbcService {
     private int getRank(ServiceReference<?> reference) {
         Object rankObj = reference.getProperty(Constants.SERVICE_RANKING);
         // If no rank, then spec says it defaults to zero.
-        rankObj = (rankObj == null) ? new Integer(0) : rankObj;
+        rankObj = (rankObj == null) ? Integer.valueOf(0) : rankObj;
         // If rank is not Integer, then spec says it defaults to zero.
         return (rankObj instanceof Integer) ? (Integer) rankObj : 0;
     }

@@ -83,9 +83,7 @@ public class FeaturesServiceMBeanImpl extends StandardEmitterMBean implements
     public void postDeregister() {
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    @Override
     public TabularData getFeatures() throws Exception {
         try {
             List<Feature> allFeatures = Arrays.asList(featuresService.listFeatures());
@@ -93,7 +91,7 @@ public class FeaturesServiceMBeanImpl extends StandardEmitterMBean implements
             ArrayList<JmxFeature> features = new ArrayList<>();
             for (Feature feature : allFeatures) {
                 try {
-                    features.add(new JmxFeature(feature, insFeatures.contains(feature)));
+                    features.add(new JmxFeature(feature, insFeatures.contains(feature), featuresService.isRequired(feature)));
                 } catch (Throwable t) {
                     t.printStackTrace();
                 }
@@ -105,9 +103,7 @@ public class FeaturesServiceMBeanImpl extends StandardEmitterMBean implements
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    @Override
     public TabularData getRepositories() throws Exception {
         try {
             List<Repository> allRepositories = Arrays.asList(featuresService.listRepositories());
@@ -126,18 +122,35 @@ public class FeaturesServiceMBeanImpl extends StandardEmitterMBean implements
         }
     }
 
+    @Override
+    public TabularData repositoryProvidedFeatures(String uri) throws Exception {
+        return infoFeature(featuresService.repositoryProvidedFeatures(new URI(uri)));
+    }
+
+    @Override
     public void addRepository(String uri) throws Exception {
-        featuresService.addRepository(new URI(uri));
+        URI repoUri = new URI(uri);
+        if (featuresService.isRepositoryUriBlacklisted(repoUri)) {
+            throw new RuntimeException("Feature URL " + uri + " is blacklisted");
+        }
+        featuresService.addRepository(repoUri);
     }
 
+    @Override
     public void addRepository(String uri, boolean install) throws Exception {
-        featuresService.addRepository(new URI(uri), install);
+        URI repoUri = new URI(uri);
+        if (featuresService.isRepositoryUriBlacklisted(repoUri)) {
+            throw new RuntimeException("Feature URL " + uri + " is blacklisted");
+        }
+        featuresService.addRepository(repoUri, install);
     }
 
+    @Override
     public void removeRepository(String uri) throws Exception {
         removeRepository(uri, false);
     }
 
+    @Override
     public void removeRepository(String uri, boolean uninstall) throws Exception {
         List<URI> uris = new ArrayList<>();
         Pattern pattern = Pattern.compile(uri);
@@ -167,6 +180,7 @@ public class FeaturesServiceMBeanImpl extends StandardEmitterMBean implements
         }
     }
 
+    @Override
     public void refreshRepository(String uri) throws Exception {
         if (uri == null || uri.isEmpty()) {
             for (Repository repository : featuresService.listRepositories()) {
@@ -189,10 +203,12 @@ public class FeaturesServiceMBeanImpl extends StandardEmitterMBean implements
         }
     }
 
+    @Override
     public void installFeature(String name) throws Exception {
         featuresService.installFeature(name);
     }
 
+    @Override
     public void installFeature(String name, boolean noRefresh) throws Exception {
         EnumSet<org.apache.karaf.features.FeaturesService.Option> options = EnumSet.noneOf(org.apache.karaf.features.FeaturesService.Option.class);
         if (noRefresh) {
@@ -201,6 +217,7 @@ public class FeaturesServiceMBeanImpl extends StandardEmitterMBean implements
         featuresService.installFeature(name, options);
     }
 
+    @Override
     public void installFeature(String name, boolean noRefresh, boolean noStart) throws Exception {
         EnumSet<org.apache.karaf.features.FeaturesService.Option> options = EnumSet.noneOf(org.apache.karaf.features.FeaturesService.Option.class);
         if (noRefresh) {
@@ -212,10 +229,12 @@ public class FeaturesServiceMBeanImpl extends StandardEmitterMBean implements
         featuresService.installFeature(name, options);
     }
 
+    @Override
     public void installFeature(String name, String version) throws Exception {
         featuresService.installFeature(name, version);
     }
 
+    @Override
     public void installFeature(String name, String version, boolean noRefresh) throws Exception {
         EnumSet<org.apache.karaf.features.FeaturesService.Option> options = EnumSet.noneOf(org.apache.karaf.features.FeaturesService.Option.class);
         if (noRefresh) {
@@ -224,6 +243,7 @@ public class FeaturesServiceMBeanImpl extends StandardEmitterMBean implements
         featuresService.installFeature(name, version, options);
     }
 
+    @Override
     public void installFeature(String name, String version, boolean noRefresh, boolean noStart) throws Exception {
         EnumSet<org.apache.karaf.features.FeaturesService.Option> options = EnumSet.noneOf(org.apache.karaf.features.FeaturesService.Option.class);
         if (noRefresh) {
@@ -235,6 +255,7 @@ public class FeaturesServiceMBeanImpl extends StandardEmitterMBean implements
         featuresService.installFeature(name, version, options);
     }
 
+    @Override
     public TabularData infoFeature(String name) throws Exception {
         try {
             Feature[] features = featuresService.getFeatures(name);
@@ -245,6 +266,7 @@ public class FeaturesServiceMBeanImpl extends StandardEmitterMBean implements
         }
     }
 
+    @Override
     public TabularData infoFeature(String name, String version) throws Exception {
         try {
             Feature[] features = featuresService.getFeatures(name, version);
@@ -258,37 +280,54 @@ public class FeaturesServiceMBeanImpl extends StandardEmitterMBean implements
     private TabularData infoFeature(Feature[] f) throws Exception {
         ArrayList<JmxFeature> features = new ArrayList<>();
         for (Feature feature:f) {
-            JmxFeature jmxFeature;
-            if (featuresService.isInstalled(feature)) {
-                jmxFeature = new JmxFeature(feature, true);
-            } else {
-                jmxFeature = new JmxFeature(feature, false);
-            }
+            boolean installed = featuresService.isInstalled(feature);
+            boolean required = featuresService.isRequired(feature);
+            JmxFeature jmxFeature = new JmxFeature(feature, installed, required);
             features.add(jmxFeature);
         }
         return JmxFeature.tableFrom(features);
     }
 
+    @Override
     public void uninstallFeature(String name) throws Exception {
         featuresService.uninstallFeature(name);
     }
 
+    @Override
     public void uninstallFeature(String name, boolean noRefresh) throws Exception {
+        uninstallFeature(name, noRefresh, false);
+    }
+
+    @Override
+    public void uninstallFeature(String name, boolean noRefresh, boolean deleteConfigurations) throws Exception {
         EnumSet<org.apache.karaf.features.FeaturesService.Option> options = EnumSet.noneOf(org.apache.karaf.features.FeaturesService.Option.class);
         if (noRefresh) {
             options.add(org.apache.karaf.features.FeaturesService.Option.NoAutoRefreshBundles);
         }
+        if (deleteConfigurations) {
+            options.add(org.apache.karaf.features.FeaturesService.Option.DeleteConfigurations);
+        }
         featuresService.uninstallFeature(name, options);
     }
 
+    @Override
     public void uninstallFeature(String name, String version) throws Exception {
         featuresService.uninstallFeature(name, version);
     }
 
+    @Override
     public void uninstallFeature(String name, String version, boolean noRefresh) throws Exception {
+        uninstallFeature(name, version, noRefresh, false);
+    }
+
+    @Override
+    public void uninstallFeature(String name, String version, boolean noRefresh, boolean deleteConfigurations) throws Exception {
         EnumSet<org.apache.karaf.features.FeaturesService.Option> options = EnumSet.noneOf(org.apache.karaf.features.FeaturesService.Option.class);
         if (noRefresh) {
             options.add(FeaturesService.Option.NoAutoRefreshBundles);
+        }
+        if (deleteConfigurations) {
+            options.add(FeaturesService.Option.DeleteConfigurations);
         }
         featuresService.uninstallFeature(name, version, options);
     }

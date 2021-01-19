@@ -20,16 +20,7 @@ package org.apache.karaf.tooling.features;
 import static java.lang.String.format;
 import static org.apache.karaf.deployer.kar.KarArtifactInstaller.FEATURE_CLASSIFIER;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.PrintStream;
-import java.io.StringWriter;
+import java.io.*;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -38,7 +29,6 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.WeakHashMap;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -46,19 +36,14 @@ import javax.xml.bind.JAXBException;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.stream.XMLStreamException;
 
-import org.apache.karaf.features.internal.model.Bundle;
-import org.apache.karaf.features.internal.model.ConfigFile;
-import org.apache.karaf.features.internal.model.Dependency;
-import org.apache.karaf.features.internal.model.Feature;
-import org.apache.karaf.features.internal.model.Features;
-import org.apache.karaf.features.internal.model.JaxbUtil;
-import org.apache.karaf.features.internal.model.ObjectFactory;
+import org.apache.karaf.features.internal.model.*;
 import org.apache.karaf.tooling.utils.DependencyHelper;
 import org.apache.karaf.tooling.utils.DependencyHelperFactory;
 import org.apache.karaf.tooling.utils.LocalDependency;
 import org.apache.karaf.tooling.utils.ManifestUtils;
 import org.apache.karaf.tooling.utils.MavenUtil;
 import org.apache.karaf.tooling.utils.MojoSupport;
+import org.apache.karaf.tooling.utils.SimpleLRUCache;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.resolver.ArtifactNotFoundException;
 import org.apache.maven.artifact.resolver.ArtifactResolutionException;
@@ -90,7 +75,7 @@ import org.xml.sax.SAXException;
 /**
  * Generates the features XML file starting with an optional source feature.xml and adding
  * project dependencies as bundles and feature/car dependencies.
- * 
+ *
  * NB this requires a recent maven-install-plugin such as 2.3.1
  */
 @Mojo(name = "features-generate-descriptor", defaultPhase = LifecyclePhase.COMPILE, requiresDependencyResolution = ResolutionScope.RUNTIME, threadSafe = true)
@@ -192,6 +177,20 @@ public class GenerateDescriptorMojo extends MojoSupport {
     private boolean includeTransitiveDependency;
 
     /**
+     * Flag indicating whether the plugin should mark transitive dependencies' <code>&lt;bundle&gt;</code> elements as a dependency.
+     * This flag has only an effect when {@link #includeTransitiveDependency} is <code>true</code>.
+     */
+    @Parameter(defaultValue = "false")
+    private boolean markTransitiveAsDependency;
+
+    /**
+     * Flag indicating whether the plugin should mark dependencies' in the <code>runtime</code> scope <code>&lt;bundle&gt;</code> elements as a dependency.
+     * This flag has only an effect when {@link #includeTransitiveDependency} is <code>true</code>.
+     */
+    @Parameter(defaultValue = "true")
+    private boolean markRuntimeScopeAsDependency;
+
+    /**
      * The standard behavior is to add dependencies as <code>&lt;bundle&gt;</code> elements to a <code>&lt;feature&gt;</code>
      * with the same name as the artifactId of the project.  This flag disables that behavior.
      * If this parameter is <code>true</code>, then two other parameters refine the list of bundles added to the primary feature:
@@ -234,14 +233,14 @@ public class GenerateDescriptorMojo extends MojoSupport {
      */
     @Parameter(defaultValue = "${project.artifactId}")
     private String primaryFeatureName;
-    
+
     /**
      * Flag indicating whether bundles should use the version range declared in the POM. If <code>false</code>,
      * the actual version of the resolved artifacts will be used.
      */
     @Parameter(defaultValue = "false")
     private boolean useVersionRange;
-    
+
     /**
      * Flag indicating whether the plugin should determine whether transitive dependencies are declared with
      * a version range. If this flag is set to <code>true</code> and a transitive dependency has been found
@@ -264,6 +263,19 @@ public class GenerateDescriptorMojo extends MojoSupport {
     private boolean simplifyBundleDependencies;
 
     /**
+     * Maximum size of the artifact LRU cache. This cache is used to prevent repeated artifact-to-file resolution.
+     */
+    @Parameter(defaultValue = "1024")
+    private int artifactCacheSize;
+
+    /**
+     * Maximum size of the Features LRU cache. This cache is used to prevent repeated deserialization of features
+     * XML files.
+     */
+    @Parameter(defaultValue = "256")
+    private int featuresCacheSize;
+
+    /**
      * Name of features which are prerequisites (they still need to be defined separately).
      */
     @Parameter
@@ -275,6 +287,9 @@ public class GenerateDescriptorMojo extends MojoSupport {
     @Parameter
     private List<String> dependencyFeatures = new ArrayList<>();
 
+    @Parameter(defaultValue = "false")
+    private boolean useJson;
+
     // *************************************************
     // READ-ONLY MAVEN PLUGIN PARAMETERS
     // *************************************************
@@ -285,7 +300,7 @@ public class GenerateDescriptorMojo extends MojoSupport {
      */
     @Component
     private PlexusContainer container;
-    
+
     @Component
     private RepositorySystem repoSystem;
 
@@ -294,7 +309,7 @@ public class GenerateDescriptorMojo extends MojoSupport {
 
     @Component
     protected MavenFileFilter mavenFileFilter;
-    
+
 	@Component
 	private ProjectBuilder mavenProjectBuilder;
 
@@ -309,11 +324,12 @@ public class GenerateDescriptorMojo extends MojoSupport {
 
     // maven log
     private Log log;
-    
+
     // If useVersionRange is true, this map will be used to cache
     // resolved MavenProjects
     private final Map<Artifact, MavenProject> resolvedProjects = new HashMap<>();
 
+    @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         try {
             if (enableGeneration == null) {
@@ -328,12 +344,18 @@ public class GenerateDescriptorMojo extends MojoSupport {
                         throw new MojoExecutionException("Could not create directory for features file: " + dir);
                     }
                     filter(inputFile, outputFile);
-                    projectHelper.attachArtifact(project, attachmentArtifactType, attachmentArtifactClassifier, outputFile);
+                    getLog().info("Generation not enabled");
+                    getLog().info("Attaching artifact");
+                    //projectHelper.attachArtifact(project, attachmentArtifactType, attachmentArtifactClassifier, outputFile);
+                    Artifact artifact = factory.createArtifactWithClassifier(project.getGroupId(), project.getArtifactId(), project.getVersion(), attachmentArtifactType, attachmentArtifactClassifier);
+                    artifact.setFile(outputFile);
+                    project.setArtifact(artifact);
                     return;
                 }
             }
 
-            this.dependencyHelper = DependencyHelperFactory.createDependencyHelper(this.container, this.project, this.mavenSession, getLog());
+            this.dependencyHelper = DependencyHelperFactory.createDependencyHelper(this.container, this.project,
+                this.mavenSession, this.artifactCacheSize, getLog());
             this.dependencyHelper.getDependencies(project, includeTransitiveDependency);
             this.localDependencies = dependencyHelper.getLocalDependencies();
             this.treeListing = dependencyHelper.getTreeListing();
@@ -342,6 +364,7 @@ public class GenerateDescriptorMojo extends MojoSupport {
                 try (PrintStream out = new PrintStream(new FileOutputStream(outputFile))) {
                     writeFeatures(out);
                 }
+                getLog().info("Attaching features XML");
                 // now lets attach it
                 projectHelper.attachArtifact(project, attachmentArtifactType, attachmentArtifactClassifier, outputFile);
             } else {
@@ -359,11 +382,11 @@ public class GenerateDescriptorMojo extends MojoSupport {
 			resolvedProject = resolvedProjects.get(artifact);
 			if (resolvedProject == null) {
 				final ProjectBuildingRequest request = new DefaultProjectBuildingRequest();
-				
-				// Fixes KARAF-4626; if the system properties are not transferred to the request, 
+
+				// Fixes KARAF-4626; if the system properties are not transferred to the request,
 				// test-feature-use-version-range-transfer-properties will fail
 				request.setSystemProperties(System.getProperties());
-				
+
 				request.setResolveDependencies(true);
 				request.setRemoteRepositories(project.getPluginArtifactRepositories());
 				request.setLocalRepository(localRepo);
@@ -398,7 +421,7 @@ public class GenerateDescriptorMojo extends MojoSupport {
 		}
 		return versionOrRange;
 	}
-    
+
     /*
      * Write all project dependencies as feature
      */
@@ -456,7 +479,7 @@ public class GenerateDescriptorMojo extends MojoSupport {
         // TODO Initialise the repositories from the existing feature file if any
         Map<Dependency, Feature> otherFeatures = new HashMap<>();
         Map<Feature, String> featureRepositories = new HashMap<>();
-        FeaturesCache cache = new FeaturesCache();
+        FeaturesCache cache = new FeaturesCache(featuresCacheSize, artifactCacheSize);
         for (final LocalDependency entry : localDependencies) {
             Object artifact = entry.getArtifact();
 
@@ -492,9 +515,10 @@ public class GenerateDescriptorMojo extends MojoSupport {
 
                     File bundleFile = this.dependencyHelper.resolve(artifact, getLog());
                     Manifest manifest = getManifest(bundleFile);
+                    boolean bundleNeedsWrapping = false;
                     if (manifest == null || !ManifestUtils.isBundle(manifest)) {
                         bundleName = "wrap:" + bundleName;
-                        needWrap = true;
+                        bundleNeedsWrapping = true;
                     }
 
                     Bundle bundle = null;
@@ -513,11 +537,17 @@ public class GenerateDescriptorMojo extends MojoSupport {
                             simplifyBundleDependencies && isBundleIncludedTransitively(feature, otherFeatures, bundle);
                         if (!includedTransitively && (!"provided".equals(entry.getScope()) || !ignoreScopeProvided)) {
                             feature.getBundle().add(bundle);
+                            needWrap |= bundleNeedsWrapping;
+                        }
+
+                        if (
+                                (markRuntimeScopeAsDependency && "runtime".equals( entry.getScope() )) ||
+                                (markTransitiveAsDependency && entry.isTransitive())
+                        ) {
+                            bundle.setDependency(true);
                         }
                     }
-                    if ("runtime".equals(entry.getScope())) {
-                        bundle.setDependency(true);
-                    }
+
                     if (startLevel != null && bundle.getStartLevel() == 0) {
                         bundle.setStartLevel(startLevel);
                     }
@@ -532,7 +562,7 @@ public class GenerateDescriptorMojo extends MojoSupport {
             wrapDependency.setPrerequisite(true);
             feature.getFeature().add(wrapDependency);
         }
-        
+
         if ((!feature.getBundle().isEmpty() || !feature.getFeature().isEmpty()) && !features.getFeature().contains(feature)) {
             features.getFeature().add(feature);
         }
@@ -549,8 +579,15 @@ public class GenerateDescriptorMojo extends MojoSupport {
                 }
             }
         }
-
-        JaxbUtil.marshal(features, out);
+        if (useJson) {
+            try {
+                JacksonUtil.marshal(features, out);
+            } catch (Exception e) {
+                throw new MojoExecutionException("Can't create features json", e);
+            }
+        } else {
+            JaxbUtil.marshal(features, out);
+        }
         try {
             checkChanges(features, objectFactory);
         } catch (Exception e) {
@@ -570,10 +607,10 @@ public class GenerateDescriptorMojo extends MojoSupport {
                 throw new MojoExecutionException(
                         "Cannot locate file for feature: " + artifact + " at " + featuresFile);
             }
-            Features includedFeatures = cache.get(featuresFile);
+            Features includedFeatures = cache.getFeature(featuresFile);
             for (String repository : includedFeatures.getRepository()) {
                 processFeatureArtifact(features, feature, otherFeatures, featureRepositories, cache,
-                        new DefaultArtifact(MavenUtil.mvnToAether(repository)), parent, false);
+                        cache.getArtifact(repository), parent, false);
             }
             for (Feature includedFeature : includedFeatures.getFeature()) {
                 Dependency dependency = new Dependency(includedFeature.getName(), includedFeature.getVersion());
@@ -646,36 +683,62 @@ public class GenerateDescriptorMojo extends MojoSupport {
      * Extract the MANIFEST from the give file.
      */
 
-    private Manifest getManifest(File file) throws IOException {
-        final InputStream is;
-        try {
-            is = Files.newInputStream(file.toPath());
-        } catch (Exception e) {
-            getLog().warn("Error while opening artifact", e);
-            return null;
-        }
-
-        try (BufferedInputStream bis = new BufferedInputStream(is)) {
-            bis.mark(256 * 1024);
-
-            try (JarInputStream jar = new JarInputStream(bis)) {
-                Manifest m = jar.getManifest();
-                if (m == null) {
-                    getLog().warn("Manifest not present in the first entry of the zip - " + file.getName());
+    private Manifest getManifest(File file) {
+        // In case of a maven build below the 'package' phase, references to the 'target/classes'
+        // directories are passed in instead of jar-file references.
+        if(file.isDirectory()) {
+            File manifestFile = new File(file, "META-INF/MANIFEST.MF");
+            if(manifestFile.exists() && manifestFile.isFile()) {
+                try {
+                    InputStream manifestInputStream = new FileInputStream(manifestFile);
+                    return new Manifest(manifestInputStream);
+                } catch (IOException e) {
+                    getLog().warn("Error while reading artifact from directory", e);
+                    return null;
                 }
-                return m;
+            }
+            getLog().warn("Manifest not present in the module directory " + file.getAbsolutePath());
+            return null;
+        } else {
+            final InputStream is;
+            try {
+                is = Files.newInputStream(file.toPath());
+            } catch (Exception e) {
+                getLog().warn("Error while opening artifact", e);
+                return null;
+            }
+
+            try (BufferedInputStream bis = new BufferedInputStream(is)) {
+                bis.mark(256 * 1024);
+
+                try (JarInputStream jar = new JarInputStream(bis)) {
+                    Manifest m = jar.getManifest();
+                    if (m == null) {
+                        getLog().warn("Manifest not present in the first entry of the zip - " + file.getName());
+                    }
+                    return m;
+                }
+            } catch (IOException e) {
+                getLog().warn("Error while reading artifact", e);
+                return null;
             }
         }
     }
 
-    private static Features readFeaturesFile(File featuresFile) throws XMLStreamException, JAXBException, IOException {
-        return JaxbUtil.unmarshal(featuresFile.toURI().toASCIIString(), false);
+    static Features readFeaturesFile(File featuresFile) throws XMLStreamException, JAXBException, IOException {
+        if (JacksonUtil.isJson(featuresFile.toURI().toASCIIString())) {
+            return JacksonUtil.unmarshal(featuresFile.toURI().toASCIIString());
+        } else {
+            return JaxbUtil.unmarshal(featuresFile.toURI().toASCIIString(), false);
+        }
     }
 
+    @Override
     public void setLog(Log log) {
         this.log = log;
     }
 
+    @Override
     public Log getLog() {
         if (log == null) {
             setLog(new SystemStreamLog());
@@ -821,14 +884,14 @@ public class GenerateDescriptorMojo extends MojoSupport {
                 if (!addedBundles.isEmpty() || !removedBundles.isEmpty() || !addedDependencys.isEmpty() || !removedDependencys.isEmpty()) {
                     saveDependencyChanges(addedBundles, removedBundles, addedDependencys, removedDependencys, objectFactory);
                     if (overwriteChangedDependencies) {
-                        writeDependencies(features, dependencyCache);
+                        writeDependencies(features, dependencyCache, useJson);
                     }
                 } else {
                     getLog().info(saveTreeListing());
                 }
 
             } else {
-                writeDependencies(features, dependencyCache);
+                writeDependencies(features, dependencyCache, useJson);
             }
         }
     }
@@ -837,11 +900,11 @@ public class GenerateDescriptorMojo extends MojoSupport {
             throws Exception {
         File addedFile = new File(filteredDependencyCache.getParentFile(), "dependencies.added.xml");
         Features added = toFeatures(addedBundles, addedDependencys, objectFactory);
-        writeDependencies(added, addedFile);
+        writeDependencies(added, addedFile, useJson);
 
         File removedFile = new File(filteredDependencyCache.getParentFile(), "dependencies.removed.xml");
         Features removed = toFeatures(removedBundles, removedDependencys, objectFactory);
-        writeDependencies(removed, removedFile);
+        writeDependencies(removed, removedFile, useJson);
 
         StringWriter out = new StringWriter();
         out.write(saveTreeListing());
@@ -850,13 +913,21 @@ public class GenerateDescriptorMojo extends MojoSupport {
         if (!addedBundles.isEmpty() || !addedDependencys.isEmpty()) {
             out.write("\tAdded dependencies are saved here: " + addedFile.getAbsolutePath() + "\n");
             if (logDependencyChanges) {
-                JaxbUtil.marshal(added, out);
+                if (useJson) {
+                    JacksonUtil.marshal(added, out);
+                } else {
+                    JaxbUtil.marshal(added, out);
+                }
             }
         }
         if (!removedBundles.isEmpty() || !removedDependencys.isEmpty()) {
             out.write("\tRemoved dependencies are saved here: " + removedFile.getAbsolutePath() + "\n");
             if (logDependencyChanges) {
-                JaxbUtil.marshal(removed, out);
+                if (useJson) {
+                    JacksonUtil.marshal(removed, out);
+                } else {
+                    JaxbUtil.marshal(removed, out);
+                }
             }
         }
         out.write("Delete " + dependencyCache.getAbsolutePath()
@@ -879,13 +950,17 @@ public class GenerateDescriptorMojo extends MojoSupport {
     }
 
 
-    private static void writeDependencies(Features features, File file) throws JAXBException, IOException {
+    private static void writeDependencies(Features features, File file, boolean useJson) throws JAXBException, IOException {
         file.getParentFile().mkdirs();
         if (!file.getParentFile().exists() || !file.getParentFile().isDirectory()) {
             throw new IOException("Cannot create directory at " + file.getParent());
         }
         try (OutputStream out = new FileOutputStream(file)) {
-            JaxbUtil.marshal(features, out);
+            if (useJson) {
+                JacksonUtil.marshal(features, out);
+            } else {
+                JaxbUtil.marshal(features, out);
+            }
         }
     }
 
@@ -927,16 +1002,27 @@ public class GenerateDescriptorMojo extends MojoSupport {
     }
 
     private static final class FeaturesCache {
-        private final Map<File, Features> map = new WeakHashMap<>();
+        // Maven-to-Aether Artifact cache, as parsing strings is expensive
+        private final SimpleLRUCache<String, DefaultArtifact> artifactCache;
+        private final SimpleLRUCache<File, Features> featuresCache;
 
-        Features get(final File featuresFile) throws XMLStreamException, JAXBException, IOException {
-            final Features existing = map.get(featuresFile);
+        FeaturesCache(int featuresCacheSize, int artifactCacheSize) {
+            featuresCache = new SimpleLRUCache<>(featuresCacheSize);
+            artifactCache = new SimpleLRUCache<>(artifactCacheSize);
+        }
+
+        DefaultArtifact getArtifact(String mavenName) {
+            return artifactCache.computeIfAbsent(mavenName, MavenUtil::mvnToArtifact);
+        }
+
+        Features getFeature(final File featuresFile) throws XMLStreamException, JAXBException, IOException {
+            final Features existing = featuresCache.get(featuresFile);
             if (existing != null) {
                 return existing;
             }
 
             final Features computed = readFeaturesFile(featuresFile);
-            map.put(featuresFile, computed);
+            featuresCache.put(featuresFile, computed);
             return computed;
         }
     }

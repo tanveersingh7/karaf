@@ -24,7 +24,7 @@
     <parent>
         <groupId>org.apache.karaf.assemblies</groupId>
         <artifactId>assemblies</artifactId>
-        <version>4.2.0-SNAPSHOT</version>
+        <version>4.3.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -36,6 +36,18 @@
     <properties>
         <appendedResourcesDirectory>${basedir}/../etc/appended-resources</appendedResourcesDirectory>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.karaf</groupId>
+                <artifactId>karaf-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -70,12 +82,6 @@
             <type>xml</type>
             <scope>runtime</scope>
         </dependency>
-        <dependency>
-            <groupId>org.apache.karaf</groupId>
-            <artifactId>demos</artifactId>
-            <version>${project.version}</version>
-            <scope>provided</scope>
-        </dependency>
     </dependencies>
 
     <build>
@@ -84,46 +90,20 @@
                 <directory>${project.basedir}/../..</directory>
                 <filtering>false</filtering>
                 <includes>
-                    <include>README</include>
+                    <include>README.md</include>
+                    <include>BUILDING.md</include>
                     <include>RELEASE*</include>
                     <include>LICENSE</include>
                     <include>NOTICE</include>
+                    <include>examples/**/*</include>
                 </includes>
-            </resource>
-            <resource>
-                <directory>${project.build.directory}/demos</directory>
-                <filtering>false</filtering>
                 <excludes>
-                    <exclude>**/*.i??</exclude>
-                    <exclude>**/.target</exclude>
-                    <exclude>**/.classpath</exclude>
+                    <exclude>examples/**/target/**/*</exclude>
+                    <exclude>**/*.iml</exclude>
                 </excludes>
             </resource>
         </resources>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>unpack</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>unpack</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <artifactItems>
-                        <artifactItem>
-                            <groupId>org.apache.karaf</groupId>
-                            <artifactId>demos</artifactId>
-                            <version>${project.version}</version>
-                        </artifactItem>
-                    </artifactItems>
-                    <outputDirectory>${project.build.directory}/demos/demos</outputDirectory>
-                </configuration>
-            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
@@ -172,6 +152,7 @@
                     </startupFeatures>
                     <bootFeatures>
                         <feature>wrap</feature>
+                        <feature>classpath</feature>
                         <feature>shell</feature>
                         <feature>feature</feature>
                         <feature>jaas</feature>
@@ -192,6 +173,8 @@
                     <libraries>
                     </libraries>
                     <javase>1.8</javase>
+                    <generateConsistencyReport>${project.build.directory}</generateConsistencyReport>
+                    <consistencyReportProjectName>Apache Karaf (full)</consistencyReportProjectName>
                 </configuration>
             </plugin>
         </plugins>
@@ -217,6 +200,83 @@
                                         <descriptor>src/main/descriptors/src.xml</descriptor>
                                     </descriptors>
                                 </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>consistency</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.google.code.maven-replacer-plugin</groupId>
+                        <artifactId>replacer</artifactId>
+                        <version>1.5.3</version>
+                        <executions>
+                            <execution>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>replace</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <filesToInclude>${project.build.directory}/bundle-report.xml</filesToInclude>
+                            <replacements>
+                                <replacement>
+                                    <token>href="bundle-report.xslt"</token>
+                                    <value>href="${project.artifactId}-${project.version}-bundle-report.xslt"</value>
+                                </replacement>
+                            </replacements>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-artifacts</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>attach-artifact</goal>
+                                </goals>
+                                <configuration>
+                                    <artifacts>
+                                        <artifact>
+                                            <file>${project.build.directory}/bundle-report.xml</file>
+                                            <classifier>bundle-report</classifier>
+                                            <type>xml</type>
+                                        </artifact>
+                                        <artifact>
+                                            <file>${project.build.directory}/bundle-report.xslt</file>
+                                            <classifier>bundle-report</classifier>
+                                            <type>xslt</type>
+                                        </artifact>
+                                    </artifacts>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>test</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.karaf.tooling</groupId>
+                        <artifactId>karaf-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>install-kar</id>
+                                <phase>none</phase>
+                            </execution>
+                            <execution>
+                                <id>package</id>
+                                <phase>none</phase>
                             </execution>
                         </executions>
                     </plugin>

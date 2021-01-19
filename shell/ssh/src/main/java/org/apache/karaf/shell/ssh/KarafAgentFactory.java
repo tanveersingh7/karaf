@@ -19,10 +19,6 @@
 package org.apache.karaf.shell.ssh;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.net.URL;
-import java.security.KeyPair;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,6 +33,7 @@ import org.apache.sshd.agent.local.LocalAgentFactory;
 import org.apache.sshd.common.FactoryManager;
 import org.apache.sshd.common.NamedFactory;
 import org.apache.sshd.common.channel.Channel;
+import org.apache.sshd.common.channel.ChannelFactory;
 import org.apache.sshd.common.session.ConnectionService;
 import org.apache.sshd.common.session.Session;
 import org.apache.sshd.server.session.ServerSession;
@@ -57,7 +54,7 @@ public class KarafAgentFactory implements SshAgentFactory {
     }
 
     @Override
-    public List<NamedFactory<Channel>> getChannelForwardingFactories(FactoryManager factoryManager) {
+    public List<ChannelFactory> getChannelForwardingFactories(FactoryManager factoryManager) {
         return LocalAgentFactory.DEFAULT_FORWARDING_CHANNELS;
     }
 
@@ -105,11 +102,6 @@ public class KarafAgentFactory implements SshAgentFactory {
         try {
             String user = (String) session.get("USER");
             SshAgent agent = new AgentImpl();
-            URL url = getClass().getClassLoader().getResource("karaf.key");
-            InputStream is = url.openStream();
-            ObjectInputStream r = new ObjectInputStream(is);
-            KeyPair keyPair = (KeyPair) r.readObject();
-            agent.addIdentity(keyPair, "karaf");
             String agentId = "local:" + user;
             session.put(SshAgent.SSH_AUTHSOCKET_ENV_NAME, agentId);
             locals.put(agentId, agent);

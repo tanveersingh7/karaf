@@ -93,6 +93,10 @@ public class Activator extends BaseActivator implements ManagedService {
             return;
         }
 
+        if (!ensureStartupConfiguration("org.apache.karaf.shell")) {
+            return;
+        }
+
         RegexCommandLoggingFilter filter = new RegexCommandLoggingFilter();
         filter.setPattern("ssh (.*?)-P +([^ ]+)");
         filter.setGroup(2);
@@ -116,10 +120,14 @@ public class Activator extends BaseActivator implements ManagedService {
         if (server == null) {
             return; // can result from bad specification.
         }
+        ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
         try {
+            Thread.currentThread().setContextClassLoader(SshServer.class.getClassLoader());
             server.start();
-        } catch (IOException e) {
+        } catch (Exception e) {
             LOGGER.warn("Exception caught while starting SSH server", e);
+        } finally {
+            Thread.currentThread().setContextClassLoader(originalClassLoader);
         }
     }
 
@@ -141,25 +149,31 @@ public class Activator extends BaseActivator implements ManagedService {
     }
 
     protected SshServer createSshServer(SessionFactory sessionFactory) {
-        int sshPort            = getInt("sshPort", 8181);
-        String sshHost         = getString("sshHost", "0.0.0.0");
-        long sshIdleTimeout    = getLong("sshIdleTimeout", 1800000);
-        int nioWorkers         = getInt("nio-workers", 2);
-        String sshRealm        = getString("sshRealm", "karaf");
-        String sshRole         = getString("sshRole", null);
-        String hostKey         = getString("hostKey", System.getProperty("karaf.etc") + "/host.key");
-        String[] authMethods   = getStringArray("authMethods", "keyboard-interactive,password,publickey");
-        int keySize            = getInt("keySize", 2048);
-        String algorithm       = getString("algorithm", "RSA");
-        String[] macs          = getStringArray("macs", "hmac-sha2-512,hmac-sha2-256,hmac-sha1");
-        String[] ciphers       = getStringArray("ciphers", "aes128-ctr,arcfour128,aes128-cbc,3des-cbc,blowfish-cbc");
-        String[] kexAlgorithms = getStringArray("kexAlgorithms", "diffie-hellman-group-exchange-sha256,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group-exchange-sha1,diffie-hellman-group1-sha1");
-        String welcomeBanner   = getString("welcomeBanner", null);
-        String moduliUrl       = getString("moduli-url", null);
-        
-        Path serverKeyPath = Paths.get(hostKey);
-        KeyPairProvider keyPairProvider = new OpenSSHKeyPairProvider(serverKeyPath.toFile(), algorithm, keySize);
-        KarafJaasAuthenticator authenticator = new KarafJaasAuthenticator(sshRealm, sshRole);
+        int sshPort                 = getInt("sshPort", 8101);
+        String sshHost              = getString("sshHost", "0.0.0.0");
+        long sshIdleTimeout         = getLong("sshIdleTimeout", 1800000);
+        int nioWorkers              = getInt("nio-workers", 2);
+        int maxConcurrentSessions  = getInt("max-concurrent-sessions", -1);
+        String sshRealm             = getString("sshRealm", "karaf");
+        Class<?>[] roleClasses      = getClassesArray("sshRoleTypes", "org.apache.karaf.jaas.boot.principal.RolePrincipal");
+        String sshRole              = getString("sshRole", null);
+        String privateHostKey       = getString("hostKey", System.getProperty("karaf.etc") + "/host.key");
+        String privateKeyPassword   = getString("hostKeyPassword", null);
+        String publicHostKey        = getString("hostKeyPub", System.getProperty("karaf.etc") + "/host.key.pub");
+        String[] authMethods        = getStringArray("authMethods", "keyboard-interactive,password,publickey");
+        int keySize                 = getInt("keySize", 2048);
+        String algorithm            = getString("algorithm", "RSA");
+        String[] macs               = getStringArray("macs", "hmac-sha2-512,hmac-sha2-256");
+        String[] ciphers            = getStringArray("ciphers", "aes256-ctr,aes192-ctr,aes128-ctr");
+        String[] kexAlgorithms      = getStringArray("kexAlgorithms", "ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group-exchange-sha256");
+        String welcomeBanner        = getString("welcomeBanner", null);
+        String moduliUrl            = getString("moduli-url", null);
+        boolean sftpEnabled         = getBoolean("sftpEnabled", true);
+
+        Path serverPrivateKeyPath = Paths.get(privateHostKey);
+        Path serverPublicKeyPath = Paths.get(publicHostKey);
+        KeyPairProvider keyPairProvider = new OpenSSHKeyPairProvider(serverPrivateKeyPath, serverPublicKeyPath, algorithm, keySize, privateKeyPassword);
+        KarafJaasAuthenticator authenticator = new KarafJaasAuthenticator(sshRealm, sshRole, roleClasses);
         UserAuthFactoriesFactory authFactoriesFactory = new UserAuthFactoriesFactory();
         authFactoriesFactory.setAuthMethods(authMethods);
 
@@ -170,23 +184,31 @@ public class Activator extends BaseActivator implements ManagedService {
         server.setCipherFactories(SshUtils.buildCiphers(ciphers));
         server.setKeyExchangeFactories(SshUtils.buildKexAlgorithms(kexAlgorithms));
         server.setShellFactory(new ShellFactoryImpl(sessionFactory));
-        server.setCommandFactory(new ScpCommandFactory.Builder().withDelegate(cmd -> new ShellCommand(sessionFactory, cmd)).build());
-        server.setSubsystemFactories(Collections.singletonList(new SftpSubsystemFactory()));
+
+        if (sftpEnabled) {
+            server.setCommandFactory(new ScpCommandFactory.Builder().withDelegate((channel, cmd) -> new ShellCommand(sessionFactory, cmd)).build());
+            server.setSubsystemFactories(Collections.singletonList(new SftpSubsystemFactory()));
+            server.setFileSystemFactory(new VirtualFileSystemFactory(Paths.get(System.getProperty("karaf.base"))));
+        } else {
+            server.setCommandFactory((channel, cmd) -> new ShellCommand(sessionFactory, cmd));
+        }
         server.setKeyPairProvider(keyPairProvider);
         server.setPasswordAuthenticator(authenticator);
         server.setPublickeyAuthenticator(authenticator);
-        server.setFileSystemFactory(new VirtualFileSystemFactory(Paths.get(System.getProperty("karaf.base"))));
         server.setUserAuthFactories(authFactoriesFactory.getFactories());
         server.setAgentFactory(KarafAgentFactory.getInstance());
-        server.setTcpipForwardingFilter(AcceptAllForwardingFilter.INSTANCE);
+        server.setForwardingFilter(AcceptAllForwardingFilter.INSTANCE);
         server.getProperties().put(SshServer.IDLE_TIMEOUT, Long.toString(sshIdleTimeout));
         server.getProperties().put(SshServer.NIO_WORKERS, Integer.toString(nioWorkers));
+        if (maxConcurrentSessions != -1) {
+            server.getProperties().put(SshServer.MAX_CONCURRENT_SESSIONS, Integer.toString(maxConcurrentSessions));
+        }
         if (moduliUrl != null) {
             server.getProperties().put(SshServer.MODULI_URL, moduliUrl);
         }
         if (welcomeBanner != null) {
             server.getProperties().put(SshServer.WELCOME_BANNER, welcomeBanner);
-        } 
+        }
         return server;
     }
 

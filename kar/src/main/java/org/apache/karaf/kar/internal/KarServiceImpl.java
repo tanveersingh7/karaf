@@ -30,6 +30,7 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -45,12 +46,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
-import org.apache.karaf.features.BundleInfo;
-import org.apache.karaf.features.ConfigFileInfo;
-import org.apache.karaf.features.Dependency;
-import org.apache.karaf.features.Feature;
-import org.apache.karaf.features.FeaturesService;
-import org.apache.karaf.features.Repository;
+import org.apache.karaf.features.*;
 import org.apache.karaf.kar.KarService;
 import org.apache.karaf.util.StreamUtils;
 import org.apache.karaf.util.maven.Parser;
@@ -82,7 +78,7 @@ public class KarServiceImpl implements KarService {
         if (!storage.isDirectory()) {
             throw new IllegalStateException("KAR storage " + storage + " is not a directory");
         }
-        unsatisfiedKars = Collections.synchronizedList(new ArrayList<Kar>());
+        unsatisfiedKars = Collections.synchronizedList(new ArrayList<>());
         busy = new AtomicBoolean();
     }
 
@@ -107,8 +103,8 @@ public class KarServiceImpl implements KarService {
     @Override
     public void install(URI karUri, File repoDir, File resourceDir, boolean noAutoStartBundles) throws Exception {
         busy.set(true);
+        Kar kar = new Kar(karUri);
         try {
-            Kar kar = new Kar(karUri);
             kar.extract(repoDir, resourceDir);
             writeToFile(kar.getFeatureRepos(), new File(repoDir, FEATURE_CONFIG_FILE));
             for (URI uri : kar.getFeatureRepos()) {
@@ -146,6 +142,11 @@ public class KarServiceImpl implements KarService {
                 }
                 delayedDeployerThread = null;
             }
+        } catch (Exception e) {
+            // cleanup state if exception occurs during installation
+            deleteRecursively(new File(storage, kar.getKarName()));
+            // throw the exception to the "clients"
+            throw e;
         } finally {
             busy.set(false);
         }
@@ -387,7 +388,7 @@ public class KarServiceImpl implements KarService {
         String manifestSt = "Manifest-Version: 1.0\n" +
             Kar.MANIFEST_ATTR_KARAF_FEATURE_START +": false\n" +
             Kar.MANIFEST_ATTR_KARAF_FEATURE_REPOS + ": " + repoUri.toString() + "\n";
-        InputStream manifestIs = new ByteArrayInputStream(manifestSt.getBytes("UTF-8"));
+        InputStream manifestIs = new ByteArrayInputStream(manifestSt.getBytes(StandardCharsets.UTF_8));
         Manifest manifest = new Manifest(manifestIs);
         return manifest;
     }
@@ -404,13 +405,26 @@ public class KarServiceImpl implements KarService {
 
     private void copyFeatureToJar(JarOutputStream jos, Feature feature, Map<URI, Integer> locationMap)
         throws URISyntaxException {
+        // add bundles
         for (BundleInfo bundleInfo : feature.getBundles()) {
-            URI location = new URI(bundleInfo.getLocation());
+            URI location = new URI(bundleInfo.getLocation().trim());
             copyResourceToJar(jos, location, locationMap);
         }
+        // add config files
         for (ConfigFileInfo configFileInfo : feature.getConfigurationFiles()) {
-            URI location = new URI(configFileInfo.getLocation());
+            URI location = new URI(configFileInfo.getLocation().trim());
             copyResourceToJar(jos, location, locationMap);
+        }
+        // add bundles and config files in conditionals
+        for (Conditional conditional : feature.getConditional()) {
+            for (BundleInfo bundleInfo : conditional.getBundles()) {
+                URI location = new URI(bundleInfo.getLocation().trim());
+                copyResourceToJar(jos, location, locationMap);
+            }
+            for (ConfigFileInfo configFileInfo : conditional.getConfigurationFiles()) {
+                URI location = new URI(configFileInfo.getLocation().trim());
+                copyResourceToJar(jos, location, locationMap);
+            }
         }
     }
 

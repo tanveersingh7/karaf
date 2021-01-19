@@ -31,7 +31,6 @@ import javax.security.auth.login.FailedLoginException;
 import javax.security.auth.login.LoginContext;
 
 import org.apache.karaf.jaas.boot.principal.ClientPrincipal;
-import org.apache.karaf.jaas.boot.principal.RolePrincipal;
 import org.apache.karaf.jaas.modules.publickey.PublickeyCallback;
 import org.apache.sshd.common.session.Session;
 import org.apache.sshd.server.auth.password.PasswordAuthenticator;
@@ -47,10 +46,12 @@ public class KarafJaasAuthenticator implements PasswordAuthenticator, PublickeyA
 
     private String realm;
     private String role;
+    private Class<?>[] roleClasses;
 
-    public KarafJaasAuthenticator(String realm, String role) {
+    public KarafJaasAuthenticator(String realm, String role, Class<?>[] roleClasses) {
         this.realm = realm;
         this.role = role;
+        this.roleClasses = roleClasses;
     }
 
     public boolean authenticate(final String username, final String password, final ServerSession session) {
@@ -99,14 +100,16 @@ public class KarafJaasAuthenticator implements PasswordAuthenticator, PublickeyA
     }
 
     private void assertRolePresent(Subject subject) throws FailedLoginException {
-        boolean hasCorrectRole = role == null || role.isEmpty();
+        boolean hasCorrectRole = role == null || role.isEmpty() || roleClasses.length == 0;
         int roleCount = 0;
         for (Principal principal : subject.getPrincipals()) {
-            if (principal instanceof RolePrincipal) {
-                if (!hasCorrectRole) {
-                    hasCorrectRole = role.equals(principal.getName());
+            for (Class<?> roleClass : roleClasses) {
+                if (roleClass.isInstance(principal)) {
+                    if (!hasCorrectRole) {
+                        hasCorrectRole = role.equals(principal.getName());
+                    }
+                    roleCount++;
                 }
-                roleCount++;
             }
         }
         if (roleCount == 0) {

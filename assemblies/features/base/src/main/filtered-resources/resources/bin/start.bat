@@ -25,7 +25,9 @@ set PROGNAME=%~nx0%
 set ARGS=%*
 
 rem Sourcing environment settings for karaf similar to tomcats setenv
-SET KARAF_SCRIPT="start.bat"
+if "%KARAF_SCRIPT%" == "" (
+	SET KARAF_SCRIPT="start.bat"
+)
 if exist "%DIRNAME%setenv.bat" (
   call "%DIRNAME%setenv.bat"
 )
@@ -62,7 +64,8 @@ if "%KARAF_BASE%" == "" (
 if not "%KARAF_DATA%" == "" (
     if not exist "%KARAF_DATA%" (
         call :warn KARAF_DATA is not valid: "%KARAF_DATA%"
-        goto END
+        call :warn Creating %KARAF_DATA%
+        mkdir %KARAF_DATA%
     )
 )
 if "%KARAF_DATA%" == "" (

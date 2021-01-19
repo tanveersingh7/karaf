@@ -18,6 +18,7 @@ package org.apache.karaf.jaas.modules.publickey;
 import org.apache.felix.utils.properties.Properties;
 import org.apache.karaf.jaas.modules.BackingEngine;
 import org.apache.karaf.jaas.modules.BackingEngineFactory;
+import org.apache.karaf.jaas.modules.JAASUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,18 +33,16 @@ public class PublickeyBackingEngineFactory implements BackingEngineFactory {
     private static final String USER_FILE = "users";
 
     public BackingEngine build(Map<String, ?> options) {
-        PublickeyBackingEngine engine = null;
-        String usersFile = (String) options.get(USER_FILE);
+        String usersFile = JAASUtils.getString(options, USER_FILE);
 
         File f = new File(usersFile);
-        Properties users;
         try {
-            users = new Properties(f);
+            Properties users = new Properties(f);
             return new PublickeyBackingEngine(users);
         } catch (IOException ioe) {
             logger.warn("Cannot open keys file:" + usersFile);
         }
-        return engine;
+        return null;
     }
 
     public String getModuleClass() {

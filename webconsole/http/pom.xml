@@ -24,7 +24,7 @@
     <parent>
         <groupId>org.apache.karaf.webconsole</groupId>
         <artifactId>webconsole</artifactId>
-        <version>4.2.0-SNAPSHOT</version>
+        <version>4.3.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -37,15 +37,27 @@
         <appendedResourcesDirectory>${basedir}/../../etc/appended-resources</appendedResourcesDirectory>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.karaf</groupId>
+                <artifactId>karaf-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency>
             <groupId>org.osgi</groupId>
-            <artifactId>org.osgi.core</artifactId>
+            <artifactId>osgi.core</artifactId>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.osgi</groupId>
-            <artifactId>org.osgi.compendium</artifactId>
+            <artifactId>osgi.cmpn</artifactId>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -73,6 +85,11 @@
 			<artifactId>pax-web-spi</artifactId>
 			<scope>provided</scope>
 		</dependency>
+        <dependency>
+            <groupId>org.apache.karaf.http</groupId>
+            <artifactId>org.apache.karaf.http.core</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>org.apache.karaf.features</groupId>
             <artifactId>org.apache.karaf.features.core</artifactId>

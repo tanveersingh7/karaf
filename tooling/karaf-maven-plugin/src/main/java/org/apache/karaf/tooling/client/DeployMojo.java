@@ -50,11 +50,8 @@ import java.io.Console;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.net.URL;
 import java.security.KeyPair;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -109,10 +106,12 @@ public class DeployMojo extends MojoSupport {
             Artifact projectArtifact = project.getArtifact();
             artifacts.add("mvn:" + projectArtifact.getGroupId() + "/" + projectArtifact.getArtifactId() + "/" + projectArtifact.getVersion());
         }
-        artifacts.addAll(artifactLocations);
+        if (artifactLocations != null) {
+            artifacts.addAll(artifactLocations);
+        }
         if (useSsh)
-            deployWithSsh(artifactLocations);
-        else deployWithJmx(artifactLocations);
+            deployWithSsh(artifacts);
+        else deployWithJmx(artifacts);
     }
 
     protected void deployWithJmx(List<String> locations) throws MojoExecutionException {
@@ -199,7 +198,7 @@ public class DeployMojo extends MojoSupport {
                 print.println("bundle:install -s " + location);
             }
 
-            final ClientChannel channel = session.createChannel("exec", print.toString().concat(NEW_LINE));
+            final ClientChannel channel = session.createChannel("exec", writer.toString().concat(NEW_LINE));
             channel.setIn(new ByteArrayInputStream(new byte[0]));
             final ByteArrayOutputStream sout = new ByteArrayOutputStream();
             final ByteArrayOutputStream serr = new ByteArrayOutputStream();
@@ -224,6 +223,7 @@ public class DeployMojo extends MojoSupport {
             throw e;
         }
         catch (Throwable t) {
+            t.printStackTrace();
             throw new MojoExecutionException(t, t.getMessage(), t.toString());
         }
         finally {
@@ -237,23 +237,17 @@ public class DeployMojo extends MojoSupport {
     }
 
     private void setupAgent(String user, File keyFile, SshClient client) {
-        URL builtInPrivateKey = ClientMojo.class.getClassLoader().getResource("karaf.key");
-        SshAgent agent = startAgent(user, builtInPrivateKey, keyFile);
+        SshAgent agent = startAgent(user, keyFile);
         client.setAgentFactory( new LocalAgentFactory(agent));
         client.getProperties().put(SshAgent.SSH_AUTHSOCKET_ENV_NAME, "local");
     }
 
-    private SshAgent startAgent(String user, URL privateKeyUrl, File keyFile) {
-        try (InputStream is = privateKeyUrl.openStream())
-        {
+    private SshAgent startAgent(String user, File keyFile) {
+        try {
             SshAgent agent = new AgentImpl();
-            ObjectInputStream r = new ObjectInputStream(is);
-            KeyPair keyPair = (KeyPair) r.readObject();
-            is.close();
-            agent.addIdentity(keyPair, user);
             if (keyFile != null) {
                 FileKeyPairProvider fileKeyPairProvider = new FileKeyPairProvider(keyFile.getAbsoluteFile().toPath());
-                for (KeyPair key : fileKeyPairProvider.loadKeys()) {
+                for (KeyPair key : fileKeyPairProvider.loadKeys(null)) {
                     agent.addIdentity(key, user);
                 }
             }

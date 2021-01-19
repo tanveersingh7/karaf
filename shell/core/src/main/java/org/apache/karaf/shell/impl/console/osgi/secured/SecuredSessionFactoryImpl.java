@@ -26,8 +26,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Dictionary;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
 
 import javax.security.auth.Subject;
 
@@ -66,6 +69,8 @@ public class SecuredSessionFactoryImpl extends SessionFactoryImpl implements Con
     private Map<String, Dictionary<String, Object>> scopes = new HashMap<>();
     private SingleServiceTracker<ConfigurationAdmin> configAdminTracker;
     private ServiceRegistration<ConfigurationListener> registration;
+    private ThreadLocal<Map<Object, Boolean>> serviceVisibleMap = new ThreadLocal<>();
+    private Map<Thread, Map<Object, Boolean>> serviceVisibleMapForAllThreads = new WeakHashMap<>();
 
     public SecuredSessionFactoryImpl(BundleContext bundleContext, ThreadIO threadIO) throws InvalidSyntaxException {
         super(threadIO);
@@ -100,19 +105,55 @@ public class SecuredSessionFactoryImpl extends SessionFactoryImpl implements Con
 
     @Override
     protected boolean isVisible(Object service) {
+        if (this.serviceVisibleMap.get() == null) {
+            this.serviceVisibleMap.set(new HashMap<>());
+            Thread cur = Thread.currentThread();
+            this.serviceVisibleMapForAllThreads.put(cur, this.serviceVisibleMap.get());
+        }
+        if (this.serviceVisibleMap.get().get(service) != null) {
+            return this.serviceVisibleMap.get().get(service);
+        }
         if (service instanceof Command) {
             Command cmd = (Command) service;
-            return isVisible(cmd.getScope(), cmd.getName());
+            boolean ret = isVisible(cmd.getScope(), cmd.getName());
+            this.serviceVisibleMap.get().put(service, ret);
+            return ret;
         } else {
-            return super.isVisible(service);
+            boolean ret = super.isVisible(service);
+            this.serviceVisibleMap.get().put(service, ret);
+            return ret;
         }
     }
 
-    protected boolean isVisible(String scope, String name) {
+    public boolean isVisible(String scope, String name) {
+        boolean visible = true;
+        Dictionary<String, Object> config = getScopeConfig(scope);
+        if (config != null) {
+            visible = false;
+            List<String> roles = new ArrayList<>();
+            ACLConfigurationParser.getRolesForInvocation(name, null, null, config, roles);
+            if (roles.isEmpty()) {
+                visible = true;
+            } else {
+                for (String role : roles) {
+                    if (currentUserHasRole(role)) {
+                        visible = true;
+                    }
+                }
+            }
+        } 
+        AliasCommand aliasCommand = findAlias(scope, name);
+        if (aliasCommand != null) {
+            visible = visible && isAliasVisible(aliasCommand.getScope(), aliasCommand.getName());
+        }
+        return visible;
+    }
+
+    public boolean isAliasVisible(String scope, String name) {
         Dictionary<String, Object> config = getScopeConfig(scope);
         if (config != null) {
             List<String> roles = new ArrayList<>();
-            ACLConfigurationParser.getRolesForInvocation(name, null, null, config, roles);
+            ACLConfigurationParser.getRolesForInvocationForAlias(name, null, null, config, roles);
             if (roles.isEmpty()) {
                 return true;
             } else {
@@ -123,12 +164,49 @@ public class SecuredSessionFactoryImpl extends SessionFactoryImpl implements Con
                 }
                 return false;
             }
-        }
+        } 
         return true;
     }
+       
+    private AliasCommand findAlias(String scope, String name) {
+        if (session != null) {
+            Set<String> vars = ((Set<String>) session.get(null));
+            String aliasScope = null;
+            String aliasName = null;
+            for (String var : vars) {
+                Object content = session.get(var);
+                if (content != null && "org.apache.felix.gogo.runtime.Closure".equals(content.getClass().getName())) {
 
+                    int index = var.indexOf(":");
+                    if (index > 0) {
+                        aliasScope = var.substring(0, index);
+                        aliasName = var.substring(index + 1);
+                        String originalCmd = content.toString();
+                        index = originalCmd.indexOf(" ");
+                        Object securityCmd = null;
+                        if (index > 0) {
+                            securityCmd = ((org.apache.felix.gogo.runtime.Closure)content)
+                                .get(originalCmd.substring(0, index));
+                        }
+                        if (securityCmd instanceof SecuredCommand) {
+                            if (((SecuredCommand)securityCmd).getScope().equals(scope)
+                               && ((SecuredCommand)securityCmd).getName().equals(name)) {
+                                return new AliasCommand(aliasScope, aliasName);
+                            }
+                        }
+                    }
+                }
+                
+            }
+        }
+        return null;
+    }
+    
+    
     void checkSecurity(String scope, String name, List<Object> arguments) {
+       
         Dictionary<String, Object> config = getScopeConfig(scope);
+        boolean passCheck = false;
         if (config != null) {
             if (!isVisible(scope, name)) {
                 throw new CommandNotFoundException(scope + ":" + name);
@@ -136,16 +214,54 @@ public class SecuredSessionFactoryImpl extends SessionFactoryImpl implements Con
             List<String> roles = new ArrayList<>();
             ACLConfigurationParser.Specificity s = ACLConfigurationParser.getRolesForInvocation(name, new Object[] { arguments.toString() }, null, config, roles);
             if (s == ACLConfigurationParser.Specificity.NO_MATCH) {
-                return;
+                passCheck = true;
             }
             for (String role : roles) {
                 if (currentUserHasRole(role)) {
-                    return;
+                    passCheck = true;
                 }
             }
-            throw new SecurityException("Insufficient credentials.");
+            if (!passCheck) {
+                throw new SecurityException("Insufficient credentials.");
+            }
+        } else {
+            List<String> roles = new ArrayList<>();
+            ACLConfigurationParser.getCompulsoryRoles(roles);
+            if (roles.size() == 0) {
+                passCheck = true;
+            }
+            for (String role : roles) {
+                if (currentUserHasRole(role)) {
+                    passCheck = true;
+                }
+            }
+            if (!passCheck) {
+                throw new SecurityException("Insufficient credentials.");
+            }
         }
+        AliasCommand aliasCommand = findAlias(scope, name); 
+        if (aliasCommand != null) {
+            //this is the alias
+            if (config != null) {
+                if (!isAliasVisible(aliasCommand.getScope(), aliasCommand.getName())) {
+                    throw new CommandNotFoundException(aliasCommand.getScope() + ":" + aliasCommand.getName());
+                }
+                List<String> roles = new ArrayList<>();
+                ACLConfigurationParser.Specificity s = ACLConfigurationParser.getRolesForInvocationForAlias(aliasCommand.getName(), new Object[] { arguments.toString() }, null, config, roles);
+                if (s == ACLConfigurationParser.Specificity.NO_MATCH) {
+                    return;
+                }
+                for (String role : roles) {
+                    if (currentUserHasRole(role)) {
+                        return;
+                    }
+                }
+                throw new SecurityException("Insufficient credentials.");
+            }
+        }
+               
     }
+
 
     static boolean currentUserHasRole(String requestedRole) {
         String clazz;
@@ -184,6 +300,11 @@ public class SecuredSessionFactoryImpl extends SessionFactoryImpl implements Con
             return;
 
         try {
+            synchronized(this.serviceVisibleMap) {
+                if (this.serviceVisibleMap.get() != null) {
+                    this.serviceVisibleMap.get().clear();
+                }
+            }
             switch (event.getType()) {
                 case ConfigurationEvent.CM_DELETED:
                     removeScopeConfig(event.getPid().substring(PROXY_COMMAND_ACL_PID_PREFIX.length()));
@@ -201,6 +322,24 @@ public class SecuredSessionFactoryImpl extends SessionFactoryImpl implements Con
             LOGGER.error("Problem processing Configuration Event {}", event, e);
         }
     }
+    
+    @Override
+    public void unregister(Object service) {
+        synchronized (services) {
+            super.unregister(service);
+            removeUnregisteredSeriveForAllShell(service);
+        }
+    }
+
+    private void removeUnregisteredSeriveForAllShell(Object service) {
+        synchronized (this.serviceVisibleMapForAllThreads) {
+            for (final Iterator<Map<Object, Boolean>> iterator = this.serviceVisibleMapForAllThreads.values().iterator();
+                iterator.hasNext();) {
+                Map<Object, Boolean> serviceMap = iterator.next();
+                serviceMap.remove(service);
+            }
+        }
+    }
 
     private void addScopeConfig(Configuration config) {
         if (!config.getPid().startsWith(PROXY_COMMAND_ACL_PID_PREFIX)) {
@@ -214,7 +353,10 @@ public class SecuredSessionFactoryImpl extends SessionFactoryImpl implements Con
         }
         scope = scope.trim();
         synchronized (scopes) {
-            scopes.put(scope, config.getProperties());
+            if (scope.endsWith("*")) {
+                scope = "star";
+            }
+            scopes.put(scope, config.getProcessedProperties(null));
         }
     }
 
@@ -226,6 +368,9 @@ public class SecuredSessionFactoryImpl extends SessionFactoryImpl implements Con
 
     private Dictionary<String, Object> getScopeConfig(String scope) {
         synchronized (scopes) {
+            if (scope.equals("*")) {
+                scope = "star";
+            }
             return scopes.get(scope);
         }
     }

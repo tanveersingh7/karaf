@@ -24,7 +24,7 @@
     <parent>
         <groupId>org.apache.karaf</groupId>
         <artifactId>karaf</artifactId>
-        <version>4.2.0-SNAPSHOT</version>
+        <version>4.3.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -38,17 +38,29 @@
         <appendedResourcesDirectory>${basedir}/../../etc/appended-resources</appendedResourcesDirectory>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.karaf</groupId>
+                <artifactId>karaf-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
 
         <dependency>
             <groupId>org.osgi</groupId>
-            <artifactId>org.osgi.core</artifactId>
+            <artifactId>osgi.core</artifactId>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.osgi</groupId>
-            <artifactId>org.osgi.compendium</artifactId>
+            <artifactId>osgi.cmpn</artifactId>
             <scope>provided</scope>
         </dependency>
 
@@ -134,13 +146,7 @@
 
         <dependency>
             <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-jdk14</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.karaf.demos.profiles</groupId>
-            <artifactId>registry</artifactId>
+            <artifactId>slf4j-log4j12</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -176,18 +182,28 @@
                             org.apache.karaf.profile.command,
                             org.apache.karaf.profile.command.completers,
                         </Export-Package>
+                        <Import-Package>
+                            org.osgi.framework;version="[1,3)",
+                            org.osgi.service.resolver;version="[1,3)",
+                            *
+                        </Import-Package>
                         <Private-Package>
+                            org.apache.karaf.profile.assembly,
                             org.apache.karaf.profile.command,
                             org.apache.karaf.profile.command.completers,
-                            org.apache.karaf.profile.assembly,
                             org.apache.karaf.profile.impl,
                             org.apache.karaf.profile.impl.osgi,
-                            org.apache.karaf.profile.versioning,
-                            org.apache.karaf.util.config,
-                            org.apache.karaf.util.maven,
-                            org.apache.felix.utils.manifest,
-                            org.apache.felix.utils.version,
-                            org.apache.felix.utils.properties,
+                            org.apache.karaf.util;-split-package:=merge-first,
+                            org.apache.karaf.util.config;-split-package:=merge-first,
+                            org.apache.karaf.util.maven;-split-package:=merge-first,
+                            org.apache.karaf.util.tracker;-split-package:=merge-first,
+                            org.apache.felix.utils.collections;-split-package:=merge-first,
+                            org.apache.felix.utils.json;-split-package:=merge-first,
+                            org.apache.felix.utils.manifest;-split-package:=merge-first,
+                            org.apache.felix.utils.properties;-split-package:=merge-first,
+                            org.apache.felix.utils.repository;-split-package:=merge-first,
+                            org.apache.felix.utils.resource;-split-package:=merge-first,
+                            org.apache.felix.utils.version;-split-package:=merge-first
                         </Private-Package>
                     </instructions>
                 </configuration>

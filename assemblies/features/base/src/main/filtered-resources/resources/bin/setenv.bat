@@ -49,6 +49,8 @@ rem SET JAVA_PERM_MEM
 rem Maximum perm memory for the JVM
 rem SET JAVA_MAX_PERM_MEM
 rem Additional JVM options
+rem SET JAVA_NON_DEBUG_OPTS
+rem Additional non-debug JVM options
 rem SET EXTRA_JAVA_OPTS 
 rem Karaf home folder
 rem SET KARAF_HOME
@@ -58,6 +60,8 @@ rem Karaf base folder
 rem SET KARAF_BASE
 rem Karaf etc folder
 rem SET KARAF_ETC
+rem First citizen Karaf options
+rem SET KARAF_SYSTEM_OPTS
 rem Additional available Karaf options
 rem SET KARAF_OPTS
 rem Enable debug mode

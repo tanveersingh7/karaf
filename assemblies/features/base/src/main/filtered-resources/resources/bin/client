@@ -17,22 +17,48 @@
 #
 
 realpath() {
-  OURPWD=${PWD}
-  cd "$(dirname "${1}")" || exit 2
-  LINK=$(ls -l "$(basename "${1}")" | awk -F"-> " '{print $2}')
-  while [ "${LINK}" ]; do
-	  echo "link: ${LINK}" >&2
-    cd "$(dirname "${LINK}")" || exit 2
-    LINK=$(ls -l "$(basename "${1}")" | awk -F"-> " '{print $2}')
-  done
-  REALPATH="${PWD}/$(basename "${1}")"
-  cd "${OURPWD}" || exit 2
-  echo "${REALPATH}"
+  # Use in priority xpg4 awk or nawk on SunOS as standard awk is outdated
+  AWK=awk
+  if ${solaris}; then
+      if [ -x /usr/xpg4/bin/awk ]; then
+          AWK=/usr/xpg4/bin/awk
+      elif [ -x /usr/bin/nawk ]; then
+          AWK=/usr/bin/nawk
+      fi
+  fi
+
+  READLINK_EXISTS=`command -v readlink &> /dev/null`
+  BINARY_NAME=`basename "${1}"`
+  if [ -z "$READLINK_EXISTS" ]; then
+    OURPWD="`pwd`"
+    cd "`dirname "${1}"`" || exit 2
+    LINK=`ls -l "${BINARY_NAME}" | ${AWK} -F"-> " '{print $2}'`
+    while [ "${LINK}" ]; do
+        echo "link: ${LINK}" >&2
+        cd "`dirname "${LINK}"`" || exit 2
+        LINK=`ls -l "${BINARY_NAME}" | ${AWK} -F"-> " '{print $2}'`
+    done
+    REALPATH="`pwd`/${BINARY_NAME}"
+    cd "${OURPWD}" || exit 2
+    echo "${REALPATH}"
+  else
+    OURPWD="`pwd`"
+    cd "`dirname "${1}"`" || exit 2
+    LINK=`readlink "${BINARY_NAME}"`
+    while [ "${LINK}" ]; do
+        echo "link: ${LINK}" >&2
+        cd "`dirname "${LINK}"`" || exit 2
+        LINK=`readlink "${BINARY_NAME}"`
+    done
+    REALPATH="`pwd`/${BINARY_NAME}"
+    cd "${OURPWD}" || exit 2
+    echo "${REALPATH}"
+  fi
 }
 
-REALNAME=$(realpath "$0")
-DIRNAME=$(dirname "${REALNAME}")
-PROGNAME=$(basename "${REALNAME}")
+REALNAME=`realpath "$0"`
+DIRNAME=`dirname "${REALNAME}"`
+PROGNAME=`basename "${REALNAME}"`
 
 #
 # Load common functions
@@ -42,8 +68,10 @@ PROGNAME=$(basename "${REALNAME}")
 #
 # Sourcing environment settings for karaf similar to tomcats setenv
 #
-KARAF_SCRIPT="${PROGNAME}"
-export KARAF_SCRIPT
+if [ "x${KARAF_SCRIPT}" = "x" ]; then
+    KARAF_SCRIPT="${PROGNAME}"
+    export KARAF_SCRIPT
+fi
 if [ -f "${DIRNAME}/setenv" ]; then
   . "${DIRNAME}/setenv"
 fi
@@ -51,10 +79,11 @@ fi
 setupClassPath() {
     # Add the jars in the lib dir
     CLASSPATH="${KARAF_HOME}/system/org/apache/karaf/org.apache.karaf.client/@@project.version@@/org.apache.karaf.client-@@project.version@@.jar"
-    CLASSPATH="${CLASSPATH}:${KARAF_HOME}/system/org/apache/sshd/sshd-core/@@sshd.version@@/sshd-core-@@sshd.version@@.jar"
+    CLASSPATH="${CLASSPATH}:${KARAF_HOME}/system/org/apache/sshd/sshd-osgi/@@sshd.version@@/sshd-osgi-@@sshd.version@@.jar"
+    CLASSPATH="${CLASSPATH}:${KARAF_HOME}/system/org/apache/sshd/sshd-scp/@@sshd.version@@/sshd-scp-@@sshd.version@@.jar"
+    CLASSPATH="${CLASSPATH}:${KARAF_HOME}/system/org/apache/sshd/sshd-sftp/@@sshd.version@@/sshd-sftp-@@sshd.version@@.jar"
     CLASSPATH="${CLASSPATH}:${KARAF_HOME}/system/org/fusesource/jansi/jansi/@@jansi.version@@/jansi-@@jansi.version@@.jar"
     CLASSPATH="${CLASSPATH}:${KARAF_HOME}/system/org/jline/jline/@@jline.version@@/jline-@@jline.version@@.jar"
-    CLASSPATH="${CLASSPATH}:${KARAF_HOME}/system/org/slf4j/slf4j-api/@@slf4j.version@@/slf4j-api-@@slf4j.version@@.jar"
 }
 
 init() {
@@ -75,6 +104,9 @@ init() {
 
     # Locate the Karaf etc directory
     locateEtc
+
+    # Locate the Karaf log directory
+    locateLog
 
     # Setup the native library path
     setupNativePath
@@ -99,6 +131,7 @@ run() {
         -Dkaraf.home="${KARAF_HOME}" \
         -Dkaraf.base="${KARAF_BASE}" \
         -Dkaraf.etc="${KARAF_ETC}" \
+        -Dkaraf.log="${KARAF_LOG}" \
         -Djava.io.tmpdir="${KARAF_DATA}/tmp" \
         -Djava.util.logging.config.file="${KARAF_BASE}/etc/java.util.logging.properties" \
         ${KARAF_OPTS} ${OPTS} \

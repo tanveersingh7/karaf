@@ -20,7 +20,6 @@ package org.apache.karaf.shell.commands.impl;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -42,12 +41,12 @@ import org.apache.karaf.shell.api.console.Completer;
 import org.apache.karaf.shell.api.console.Parser;
 import org.apache.karaf.shell.api.console.Session;
 import org.apache.karaf.shell.api.console.SessionFactory;
-import org.apache.karaf.shell.api.console.Signal;
 import org.apache.karaf.shell.commands.impl.WatchAction.WatchParser;
 import org.apache.karaf.shell.support.ShellUtil;
 import org.apache.karaf.shell.support.completers.CommandsCompleter;
 import org.apache.karaf.shell.support.parsing.CommandLineImpl;
 import org.apache.karaf.shell.support.parsing.DefaultParser;
+import org.apache.karaf.util.ThreadUtils;
 import org.jline.terminal.Attributes;
 import org.jline.terminal.Terminal;
 import org.jline.utils.NonBlockingReader;
@@ -73,7 +72,7 @@ public class WatchAction implements Action {
     @Reference
     SessionFactory sessionFactory;
 
-    private ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor(ThreadUtils.namedThreadFactory("shell:watch"));
 
     private boolean abort;
     private Thread reading;

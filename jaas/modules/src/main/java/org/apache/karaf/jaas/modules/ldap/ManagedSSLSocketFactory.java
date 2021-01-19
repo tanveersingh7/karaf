@@ -53,6 +53,11 @@ public class ManagedSSLSocketFactory extends SSLSocketFactory implements Compara
         return delegate.getSupportedCipherSuites();
     }
 
+    @Override
+    public Socket createSocket() throws IOException {
+        return delegate.createSocket();
+    }
+
     public Socket createSocket(Socket s, String host, int port, boolean autoClose) throws IOException {
         return delegate.createSocket(s, host, port, autoClose);
     }
@@ -74,10 +79,7 @@ public class ManagedSSLSocketFactory extends SSLSocketFactory implements Compara
     }
 
     /**
-     * For com.sun.jndi.ldap.ClientId#invokeComparator(com.sun.jndi.ldap.ClientId, com.sun.jndi.ldap.ClientId)
-     * @param f1
-     * @param f2
-     * @return
+     * For com.sun.jndi.ldap.ClientId#invokeComparator(com.sun.jndi.ldap.ClientId, com.sun.jndi.ldap.ClientId).
      */
     public int compare(Object f1, Object f2) {
         if (f1 == null && f2 == null) {

@@ -20,9 +20,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.felix.utils.collections.StringArrayMap;
+import org.apache.felix.utils.resource.CapabilityImpl;
+import org.apache.felix.utils.resource.RequirementImpl;
+import org.apache.felix.utils.resource.ResourceImpl;
+import org.apache.felix.utils.resource.SimpleFilter;
 import org.apache.felix.utils.version.VersionRange;
 import org.apache.felix.utils.version.VersionTable;
-import org.apache.karaf.features.internal.util.StringArrayMap;
 import org.osgi.framework.Constants;
 import org.osgi.framework.Version;
 import org.osgi.resource.Capability;
@@ -69,6 +73,9 @@ public final class ResourceUtils {
         return null;
     }
 
+    /**
+     * If the resource has <code>type=karaf.feature</code> capability, returns its ID (name[/version]).
+     */
     public static String getFeatureId(Resource resource) {
         List<Capability> caps = resource.getCapabilities(null);
         for (Capability cap : caps) {
@@ -144,6 +151,13 @@ public final class ResourceUtils {
         }
     }
 
+    /**
+     * Changes feature identifier (<code>name[/version]</code>) into a requirement specification.
+     * The OSGi manifest header for a feature will be: <code>osgi.identity;osgi.identity=feature-name;type=karaf.feature[;version=feature-version];filter:=filter-from-attrs</code>.
+     *
+     * @param feature The feature name.
+     * @return The feature requirement.
+     */
     public static String toFeatureRequirement(String feature) {
         String[] parts = feature.split("/");
         Map<String, Object> attrs = new StringArrayMap<>(parts.length > 1 ? 3 : 2);

@@ -38,6 +38,7 @@ import org.jline.terminal.Attributes;
 import org.jline.terminal.Cursor;
 import org.jline.terminal.MouseEvent;
 import org.jline.terminal.Size;
+import org.jline.utils.ColorPalette;
 import org.jline.utils.InfoCmp.Capability;
 import org.jline.utils.NonBlockingReader;
 import org.slf4j.Logger;
@@ -304,4 +305,48 @@ public class JLineTerminal implements Terminal, org.jline.terminal.Terminal {
         }
     }
 
+    @Override
+    public boolean canPauseResume() {
+        return terminal.canPauseResume();
+    }
+
+    @Override
+    public void pause() {
+        terminal.pause();
+    }
+
+    @Override
+    public void pause(boolean wait) throws InterruptedException {
+        terminal.pause(wait);
+    }
+
+    @Override
+    public void resume() {
+        terminal.resume();
+    }
+
+    @Override
+    public boolean paused() {
+        return terminal.paused();
+    }
+
+    @Override
+    public boolean hasFocusSupport() {
+        return terminal.hasFocusSupport();
+    }
+
+    @Override
+    public boolean trackFocus(boolean tracking) {
+        return terminal.trackFocus(tracking);
+    }
+
+    @Override
+    public Size getBufferSize() {
+        return terminal.getBufferSize();
+    }
+
+    @Override
+    public ColorPalette getPalette() {
+        return terminal.getPalette();
+    }
 }

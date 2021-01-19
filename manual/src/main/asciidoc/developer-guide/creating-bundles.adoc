@@ -12,69 +12,30 @@
 // limitations under the License.
 //
 
-=== Basic bundle creation using the Felix maven-bundle-plugin
+=== Creating Bundles
 
-Create a bundle instead of a normal jar by using a Maven POM file like this:
+The examples provides different kind of bundles and services definition:
 
-----
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-
-    <modelVersion>4.0.0</modelVersion>
-
-    <groupId>my.groupId</groupId>
-    <artifactId>my.bundle</artifactId>
-    <version>1.0-SNAPSHOT</version>
-    <name>My Bundle</name>
-    <description>My bundle short description</description>
-
-    <build>
-        <resources>
-            <resource>
-                <directory>${project.basedir}/src/main/resources</directory>
-                <filtering>true</filtering>
-                <includes>
-                    <include>**/*</include>
-                </includes>
-            </resource>
-        </resources>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.felix</groupId>
-                <artifactId>maven-bundle-plugin</artifactId>
-                <version>2.4.0</version>
-                <extensions>true</extensions>
-                <configuration>
-                    <instructions>
-                        <Bundle-SymbolicName>${project.artifactId}</Bundle-SymbolicName>
-                        ...
-                    </instructions>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
-
-</project>
-----
+* https://github.com/apache/karaf/blob/master/examples/karaf-bundle-example/README.md
+* https://github.com/apache/karaf/blob/master/examples/karaf-blueprint-example/README.md
+* https://github.com/apache/karaf/blob/master/examples/karaf-scr-example/README.md
 
 ==== Add extended information to bundles
 
 Karaf supports a OSGI-INF/bundle.info file in a bundle.
-This file is extended description of the bundle.
+This file is an extended description of the bundle.
 It supports ASCII character declarations (for adding color, formatting, etc) and some simple Wiki syntax.
 
 Simply add a `src/main/resources/OSGI-INF/bundle.info` file containing, for instance:
 
 ----
-== SYNOPSIS
+h1. SYNOPSIS
     ${project.description}
 
-== DESCRIPTION
+h1. DESCRIPTION
     Long description of your bundle, including usage, etc.
 
-==SEE ALSO
+h1. SEE ALSO
     [http://yourside\]
     [http://yourside/docs\]
 ----
@@ -90,9 +51,10 @@ root@karaf> bundles:info
 Karaf supports some simple wiki syntax in bundle info files:
 
 ----
-==, ===, ... : Headings
+h1., h2., ... : Headings
 * : Enumerations
-[http://....] : links
+[ http://.... ] : links (there must be a space after the opening bracket)
+**text** : bold text
 ----
 
 === Creating bundles for non OSGi third party dependencies
@@ -107,7 +69,7 @@ It allows for directly deploying third party dependencies, like Apache Commons L
 root@karaf> bundles:install wrap:mvn:commons-lang/commons-lang/2.4
 ----
 
-The wrap protocol creates a bundle dynamically using the bnd. Confiugurations can be added in the wrap URL:
+The wrap protocol creates a bundle dynamically using the bnd. Configurations can be added in the wrap URL:
 
 * from the shell
 
@@ -124,10 +86,10 @@ root@karaf> bundles:install 'wrap:mvn:commons-lang/commons-lang/2.4$Bundle-Symbo
 Important notice : Add as child of your feature definition, the reference to wrap feature
 
 ----
-<feature prerequisiste="true">wrap</feature>
+<feature prerequisite="true">wrap</feature>
 ----
 
-Additional information about meaning of `prerequisiste` attribute can be found in link:provisioning[Feature prerequisites] description.
+Additional information about meaning of `prerequisite` attribute can be found in link:provisioning[Feature prerequisites] description.
 
 For instance : 
 

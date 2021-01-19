@@ -382,7 +382,7 @@ public class DefaultActionPreparator implements ActionPreparator {
                 out.println(command.description());
                 out.println();
             }
-            StringBuffer syntax = new StringBuffer();
+            StringBuilder syntax = new StringBuilder();
             if (command != null) {
                 if (globalScope) {
                     syntax.append(command.name());
@@ -436,9 +436,9 @@ public class DefaultActionPreparator implements ActionPreparator {
             if (options.size() > 0) {
                 out.println(INTENSITY_BOLD + "OPTIONS" + INTENSITY_NORMAL);
                 for (Option option : options) {
-                    String opt = option.name();
+                    StringBuilder opt = new StringBuilder(option.name());
                     for (String alias : option.aliases()) {
-                        opt += ", " + alias;
+                        opt.append(", ").append(alias);
                     }
                     out.print("        ");
                     out.println(INTENSITY_BOLD + opt + INTENSITY_NORMAL);
@@ -557,6 +557,6 @@ public class DefaultActionPreparator implements ActionPreparator {
 
     private int getWidth(CommandSession session) {
         Object cols = session.get("COLUMNS");
-        return  (cols != null && cols instanceof Integer) ? (Integer)cols : 80;
+        return cols instanceof Integer ? (Integer)cols : 80;
     }
 }

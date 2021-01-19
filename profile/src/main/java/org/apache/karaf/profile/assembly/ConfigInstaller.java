@@ -16,11 +16,10 @@
  */
 package org.apache.karaf.profile.assembly;
 
-import java.io.IOException;
-import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -33,6 +32,9 @@ import org.apache.karaf.features.internal.model.Feature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Installs PID configuration to <code>${karaf.etc}</code> and <code>system/</code> directory.
+ */
 public class ConfigInstaller {
     private static final Logger LOGGER = LoggerFactory.getLogger(ConfigInstaller.class);
     private Path etcDirectory;
@@ -41,11 +43,10 @@ public class ConfigInstaller {
     public ConfigInstaller(Path etcDirectory, List<String> pidsToExtract) {
         this.etcDirectory = etcDirectory;
         this.pidsToExtract = pidsToExtract;
-        // TODO Auto-generated constructor stub
     }
 
     public void installConfigs(Feature feature, Downloader downloader, ArtifactInstaller installer)
-        throws Exception, MalformedURLException, IOException {
+        throws Exception {
         List<Content> contents = new ArrayList<>();
         contents.add(feature);
         contents.addAll(feature.getConditional());
@@ -60,18 +61,41 @@ public class ConfigInstaller {
                 installer.installArtifact(configFile.getLocation().trim());
             }
             // Extract configs
+            Path homeDirectory = etcDirectory.getParent();
             for (Config config : content.getConfig()) {
                 if (pidMatching(config.getName())) {
                     Path configFile = etcDirectory.resolve(config.getName() + ".cfg");
-                    LOGGER.info("      adding config file: {}", configFile);
+                    boolean configFileExist = Files.exists(configFile);
+                    if (!config.isAppend() && configFileExist) {
+                        LOGGER.info("      not changing existing config file: {}", homeDirectory.relativize(configFile));
+                        continue;
+                    }
                     if (config.isExternal()) {
                         downloader.download(config.getValue().trim(), provider -> {
                             synchronized (provider) {
-                                Files.copy(provider.getFile().toPath(), configFile, StandardCopyOption.REPLACE_EXISTING);
+                                if (config.isAppend()) {
+                                    byte[] data = Files.readAllBytes(provider.getFile().toPath());
+                                    LOGGER.info("      appending to config file: {}", homeDirectory.relativize(configFile));
+                                    Files.write(configFile, data, StandardOpenOption.APPEND);
+                                } else {
+                                    LOGGER.info("      adding config file: {}", homeDirectory.relativize(configFile));
+                                    Files.copy(provider.getFile().toPath(), configFile, StandardCopyOption.REPLACE_EXISTING);
+                                }
                             }
                         });
                     } else {
-                        Files.write(configFile, config.getValue().getBytes());
+                        if (config.isAppend()) {
+                            if (configFileExist) {
+                                LOGGER.info("      appending to config file: {}", homeDirectory.relativize(configFile));
+                                Files.write(configFile, config.getValue().getBytes(), StandardOpenOption.APPEND);
+                            }
+                            else
+                                LOGGER.warn("      Could not append, because config file does not exist: {}", homeDirectory.relativize(configFile));
+                            
+                        } else {
+                            LOGGER.info("      adding config file: {}", homeDirectory.relativize(configFile));
+                            Files.write(configFile, config.getValue().getBytes());
+                        }
                     }
                 }
             }

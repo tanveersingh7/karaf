@@ -28,7 +28,6 @@ import java.util.Objects;
 
 import org.apache.felix.gogo.jline.Builtin;
 import org.apache.felix.gogo.jline.Posix;
-import org.apache.felix.gogo.jline.Procedural;
 import org.apache.felix.gogo.runtime.CommandProcessorImpl;
 import org.apache.felix.gogo.runtime.CommandSessionImpl;
 import org.apache.felix.gogo.runtime.Reflective;
@@ -43,6 +42,7 @@ import org.apache.karaf.shell.api.console.Session;
 import org.apache.karaf.shell.api.console.SessionFactory;
 import org.apache.karaf.shell.api.console.Terminal;
 import org.apache.karaf.shell.impl.console.commands.ExitCommand;
+import org.apache.karaf.shell.impl.console.commands.Procedural;
 import org.apache.karaf.shell.impl.console.commands.SubShellCommand;
 import org.apache.karaf.shell.impl.console.commands.help.HelpCommand;
 
@@ -157,6 +157,9 @@ public class SessionFactoryImpl extends RegistryImpl implements SessionFactory, 
                 throw new IllegalStateException("SessionFactory has been closed");
             }
             final Session session = new ConsoleSessionImpl(this, commandProcessor, threadIO, in, out, err, term, encoding, closeCallback);
+            if (this.session == null) {
+                this.session = session;
+            }
             return session;
         }
     }

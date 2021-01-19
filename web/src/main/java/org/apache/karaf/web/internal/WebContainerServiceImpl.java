@@ -65,6 +65,7 @@ public class WebContainerServiceImpl implements WebContainerService, BundleListe
         }
     }
 
+    @Override
     public List<WebBundle> list() throws Exception {
         Bundle[] bundles = bundleContext.getBundles();
         Map<Long, WebEvent> bundleEvents = webEventHandler.getBundleEvents();
@@ -112,7 +113,33 @@ public class WebContainerServiceImpl implements WebContainerService, BundleListe
         
         return webBundles;
     }
-    
+
+    @Override
+    public void install(String location, String contextPath) throws Exception {
+        String completeLocation = "webbundle:" + location + "?Web-ContextPath=" + contextPath;
+        Bundle bundle = bundleContext.installBundle(completeLocation);
+        bundle.start();
+    }
+
+    @Override
+    public void uninstall(List<Long> bundleIds) throws Exception {
+        if (bundleIds != null && !bundleIds.isEmpty()) {
+            for (long bundleId : bundleIds) {
+                if (webEventHandler.getBundleEvents().containsKey(bundleId)) {
+                    WebEvent webEvent = webEventHandler.getBundleEvents().get(bundleId);
+                    Bundle bundle = webEvent.getBundle();
+                    if (bundle != null) {
+                        bundle.uninstall();
+                    } else {
+                        System.out.println("Bundle ID " + bundleId + " is invalid");
+                        LOGGER.warn("Bundle ID {} is invalid", bundleId);
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
     public void start(List<Long> bundleIds) throws Exception {
         if (bundleIds != null && !bundleIds.isEmpty()) {
             for (long bundleId : bundleIds) {
@@ -131,6 +158,7 @@ public class WebContainerServiceImpl implements WebContainerService, BundleListe
         }
     }
 
+    @Override
     public void stop(List<Long> bundleIds) throws Exception {
         if (bundleIds != null && !bundleIds.isEmpty()) {
             for (long bundleId : bundleIds) {
@@ -149,43 +177,44 @@ public class WebContainerServiceImpl implements WebContainerService, BundleListe
         }
     }
 
+    @Override
     public String state(long bundleId) {
 
         Map<Long, WebEvent> bundleEvents = webEventHandler.getBundleEvents();
-        String topic = "Unknown    ";
+        StringBuilder topic = new StringBuilder("Unknown    ");
 
         if (bundleEvents.containsKey(bundleId)) {
             WebEvent webEvent = bundleEvents.get(bundleId);
 
             switch(webEvent.getType()) {
                 case WebEvent.DEPLOYING:
-                    topic = "Deploying  ";
+                    topic = new StringBuilder("Deploying  ");
                     break;
                 case WebEvent.DEPLOYED:
-                    topic = "Deployed   ";
+                    topic = new StringBuilder("Deployed   ");
                     break;
                 case WebEvent.UNDEPLOYING:
-                    topic = "Undeploying";
+                    topic = new StringBuilder("Undeploying");
                     break;
                 case WebEvent.UNDEPLOYED:
-                    topic = "Undeployed ";
+                    topic = new StringBuilder("Undeployed ");
                     break;
                 case WebEvent.FAILED:
-                    topic = "Failed     ";
+                    topic = new StringBuilder("Failed     ");
                     break;
                 case WebEvent.WAITING:
-                    topic = "Waiting    ";
+                    topic = new StringBuilder("Waiting    ");
                     break;
                 default:
-                    topic = "Failed     ";
+                    topic = new StringBuilder("Failed     ");
             }
         }
 
         while (topic.length() < 11) {
-            topic += " ";
+            topic.append(" ");
         }
 
-        return topic;
+        return topic.toString();
     }
 
     /**

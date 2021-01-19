@@ -16,7 +16,6 @@
  */
 package org.apache.karaf.management;
 
-import org.apache.karaf.management.internal.Activator;
 import org.apache.karaf.management.internal.BulkRequestContext;
 import org.apache.karaf.management.internal.EventAdminLogger;
 import org.apache.karaf.management.internal.EventAdminMBeanServerWrapper;
@@ -98,16 +97,22 @@ public class KarafMBeanServerGuard implements InvocationHandler {
         }
 
         ObjectName objectName = (ObjectName) args[0];
-        if ("getAttribute".equals(method.getName())) {
-            handleGetAttribute(mbs, objectName, (String) args[1]);
-        } else if ("getAttributes".equals(method.getName())) {
-            handleGetAttributes(mbs, objectName, (String[]) args[1]);
-        } else if ("setAttribute".equals(method.getName())) {
-            handleSetAttribute(mbs, objectName, (Attribute) args[1]);
-        } else if ("setAttributes".equals(method.getName())) {
-            handleSetAttributes(mbs, objectName, (AttributeList) args[1]);
-        } else if ("invoke".equals(method.getName())) {
-            handleInvoke(objectName, (String) args[1], (Object[]) args[2], (String[]) args[3]);
+        switch (method.getName()) {
+            case "getAttribute":
+                handleGetAttribute(mbs, objectName, (String) args[1]);
+                break;
+            case "getAttributes":
+                handleGetAttributes(mbs, objectName, (String[]) args[1]);
+                break;
+            case "setAttribute":
+                handleSetAttribute(mbs, objectName, (Attribute) args[1]);
+                break;
+            case "setAttributes":
+                handleSetAttributes(mbs, objectName, (AttributeList) args[1]);
+                break;
+            case "invoke":
+                handleInvoke(mbs, objectName, (String) args[1], (Object[]) args[2], (String[]) args[3]);
+                break;
         }
 
         return null;
@@ -346,11 +351,20 @@ public class KarafMBeanServerGuard implements InvocationHandler {
         return false;
     }
 
-    void handleInvoke(ObjectName objectName, String operationName, Object[] params, String[] signature) throws IOException {
-        handleInvoke(null, objectName, operationName, params, signature);
+    void handleInvoke(MBeanServer mbs, ObjectName objectName, String operationName, Object[] params, String[] signature) throws IOException, InstanceNotFoundException {
+        handleInvoke(mbs, null, objectName, operationName, params, signature);
     }
 
-    void handleInvoke(BulkRequestContext context, ObjectName objectName, String operationName, Object[] params, String[] signature) throws IOException {
+    void handleInvoke(MBeanServer mbs, BulkRequestContext context, ObjectName objectName, String operationName, Object[] params, String[] signature) throws IOException, InstanceNotFoundException {
+        if (mbs != null && mbs.isInstanceOf(objectName, "javax.management.loading.MLet")
+            && ("addUrl".equals(operationName) || "getMBeansFromURL".equals(operationName))) {
+            SecurityException se = new SecurityException(operationName + " is not allowed to be invoked");
+            if (logger != null) {
+                logger.log(INVOKE, INVOKE_SIG, null, se, objectName, operationName, signature, params);
+            }
+            throw se;
+        }
+
         if (context == null) {
             context = BulkRequestContext.newContext(configAdmin);
         }
@@ -373,23 +387,23 @@ public class KarafMBeanServerGuard implements InvocationHandler {
 
     private void printDetailedMessage(BulkRequestContext context, ObjectName objectName,
                                       String operationName, Object[] params, String[] signature) throws IOException {
-        String expectedRoles = "";
+        StringBuilder expectedRoles = new StringBuilder();
         for (String role : getRequiredRoles(context, objectName, operationName, params, signature)) {
             if (expectedRoles.length() != 0) {
-                expectedRoles = expectedRoles + ", " + role;
+                expectedRoles.append(", ").append(role);
             } else {
-                expectedRoles = role;
+                expectedRoles = new StringBuilder(role);
             }
         }
-        String currentRoles = "";
+        StringBuilder currentRoles = new StringBuilder();
         for (Principal p : context.getPrincipals()) {
             if (!p.getClass().getName().endsWith("RolePrincipal")) {
                 continue;
             }
             if (currentRoles.length() != 0) {
-                currentRoles = currentRoles + ", " + p.getName();
+                currentRoles.append(", ").append(p.getName());
             } else {
-                currentRoles = p.getName();
+                currentRoles = new StringBuilder(p.getName());
             }
         }
         String matchedPid = null;

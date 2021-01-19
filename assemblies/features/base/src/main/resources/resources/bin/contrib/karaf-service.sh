@@ -36,13 +36,15 @@ END
     exit
 }
 
-CONF_TEMPLATE="karaf-service-template.conf"
-SYSTEMD_TEMPLATE="karaf-service-template.systemd"
-SYSTEMD_TEMPLATE_INSTANCES="karaf-service-template.systemd-instances"
-INIT_TEMPLATE="karaf-service-template.init"
-INIT_REDHAT_TEMPLATE="karaf-service-template.init-redhat"
-INIT_DEBIAN_TEMPLATE="karaf-service-template.init-debian"
-SOLARIS_SMF_TEMPLATE="karaf-service-template.solaris-smf"
+CONTRIB_FOLDER=`dirname "$0"`
+CONF_TEMPLATE="${CONTRIB_FOLDER}/karaf-service-template.conf"
+SYSTEMD_TEMPLATE="${CONTRIB_FOLDER}/karaf-service-template.systemd"
+SYSTEMD_TEMPLATE_INSTANCES="${CONTRIB_FOLDER}/karaf-service-template.systemd-instances"
+INIT_TEMPLATE="${CONTRIB_FOLDER}/karaf-service-template.init"
+INIT_REDHAT_TEMPLATE="${CONTRIB_FOLDER}/karaf-service-template.init-redhat"
+INIT_DEBIAN_TEMPLATE="${CONTRIB_FOLDER}/karaf-service-template.init-debian"
+SOLARIS_SMF_TEMPLATE="${CONTRIB_FOLDER}/karaf-service-template.solaris-smf"
+
 
 ################################################################################
 #
@@ -137,7 +139,7 @@ function generate_service_descriptor {
 if [[ ! $KARAF_SERVICE_TEMPLATE ]]; then
     case $(uname | tr [:upper:] [:lower:]) in
         sunos)
-            # add KARAF_ENV vars to envirioment
+            # add KARAF_ENV vars to environment
             for var in "${KARAF_ENV[@]}"; do
                 export $var
             done

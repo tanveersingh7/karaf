@@ -17,6 +17,7 @@ package org.apache.karaf.jaas.modules.ldap;
 import org.apache.karaf.jaas.boot.principal.RolePrincipal;
 import org.apache.karaf.jaas.boot.principal.UserPrincipal;
 import org.apache.karaf.jaas.modules.AbstractKarafLoginModule;
+import org.apache.karaf.jaas.modules.JAASUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,11 +58,12 @@ public class GSSAPILdapLoginModule extends AbstractKarafLoginModule {
             throw new LoginException("cannot authenticate through the delegating realm");
         }
 
-        context = new LoginContext((String) options.get(REALM_PROPERTY), this.subject, this.callbackHandler);
+        context = new LoginContext(JAASUtils.getString(options, REALM_PROPERTY), this.subject, this.callbackHandler);
         context.login();
 
         try {
-            return Subject.doAs(context.getSubject(), (PrivilegedExceptionAction<Boolean>) this::doLogin);
+            succeeded = Subject.doAs(context.getSubject(), (PrivilegedExceptionAction<Boolean>) this::doLogin);
+            return succeeded;
         } catch (PrivilegedActionException pExcp) {
             logger.error("error with delegated authentication", pExcp);
             throw new LoginException(pExcp.getMessage());
@@ -131,21 +133,11 @@ public class GSSAPILdapLoginModule extends AbstractKarafLoginModule {
     }
 
     @Override
-    public boolean abort() throws LoginException {
-        return true;
-    }
-
-    @Override
     public boolean commit() throws LoginException {
         boolean ret = super.commit();
-        principals.addAll(subject.getPrincipals(KerberosPrincipal.class));
+        if (ret) {
+            principals.addAll(subject.getPrincipals(KerberosPrincipal.class));
+        }
         return ret;
-    }
-
-    @Override
-    public boolean logout() throws LoginException {
-        subject.getPrincipals().removeAll(principals);
-        principals.clear();
-        return true;
     }
 }

@@ -24,7 +24,7 @@
     <parent>
         <groupId>org.apache.karaf.assemblies.features</groupId>
         <artifactId>features</artifactId>
-        <version>4.2.0-SNAPSHOT</version>
+        <version>4.3.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -36,12 +36,21 @@
 
     <properties>
         <appendedResourcesDirectory>${basedir}/../../../../etc/appended-resources</appendedResourcesDirectory>
-        <dependency.jetty.version>9.3.15.v20161220</dependency.jetty.version>
-        <javax.annotation.version>1.2</javax.annotation.version>
+        <javax.annotation.version>1.3</javax.annotation.version>
         <geronimo.jaspic-spec.version>1.1</geronimo.jaspic-spec.version>
-        <aries.spifly.version>1.0.2</aries.spifly.version>
-        <dependency.websocket.version>1.1</dependency.websocket.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.karaf</groupId>
+                <artifactId>karaf-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <!-- Framework distribution -->
@@ -151,23 +160,6 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- jetty deps -->
-        <dependency>
-            <groupId>org.apache.servicemix.specs</groupId>
-            <artifactId>org.apache.servicemix.specs.activation-api-1.1</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>${servlet.spec.groupId}</groupId>
-            <artifactId>${servlet.spec.artifactId}</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>javax.mail</groupId>
-            <artifactId>mail</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
         <!-- httplite deps -->
         <dependency>
             <groupId>org.apache.felix</groupId>
@@ -251,7 +243,7 @@
         </dependency>
         <dependency>
             <groupId>biz.aQute.bnd</groupId>
-            <artifactId>bndlib</artifactId>
+            <artifactId>biz.aQute.bndlib</artifactId>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -314,13 +306,29 @@
         <!-- ssh deps -->
         <dependency>
             <groupId>org.apache.sshd</groupId>
-            <artifactId>sshd-core</artifactId>
+            <artifactId>sshd-osgi</artifactId>
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>org.apache.servicemix.bundles</groupId>
-            <artifactId>org.apache.servicemix.bundles.not-yet-commons-ssl</artifactId>
-            <version>0.3.11_1</version>
+            <groupId>org.apache.sshd</groupId>
+            <artifactId>sshd-scp</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sshd</groupId>
+            <artifactId>sshd-sftp</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk15on</artifactId>
+            <version>${bouncycastle.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk15on</artifactId>
+            <version>${bouncycastle.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -364,6 +372,11 @@
             <artifactId>org.apache.karaf.services.eventadmin</artifactId>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.karaf</groupId>
+            <artifactId>org.apache.karaf.event</artifactId>
+            <scope>provided</scope>
+        </dependency>
 
         <!-- jasypt-encryption deps -->
         <dependency>
@@ -387,6 +400,21 @@
             <groupId>org.apache.karaf.scr</groupId>
             <artifactId>org.apache.karaf.scr.management</artifactId>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- audit -->
+        <dependency>
+            <groupId>org.apache.karaf.audit</groupId>
+            <artifactId>org.apache.karaf.audit.core</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- manual -->
+        <dependency>
+            <groupId>org.apache.karaf</groupId>
+            <artifactId>manual</artifactId>
+            <scope>provided</scope>
+            <optional>true</optional>
         </dependency>
     </dependencies>
 
@@ -429,10 +457,14 @@
                                 <descriptor>file:${project.build.directory}/feature/feature.xml</descriptor>
                             </descriptors>
                             <distribution>org.apache.karaf.features:framework</distribution>
-                            <javase>1.8</javase>
+                            <javase>9</javase>
                             <framework>
                                 <feature>framework</feature>
                             </framework>
+                            <features>
+                                <!-- webconsole, blueprint-web and jolokia features use requirement -->
+                                <feature>(?!(webconsole|blueprint-web|jolokia))*</feature>
+                            </features>
                             <ignoreMissingConditions>true</ignoreMissingConditions>
                         </configuration>
                     </execution>
@@ -462,5 +494,25 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>test</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.karaf.tooling</groupId>
+                        <artifactId>karaf-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>verify</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

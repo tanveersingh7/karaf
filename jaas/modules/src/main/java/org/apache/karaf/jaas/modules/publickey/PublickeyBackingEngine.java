@@ -49,7 +49,7 @@ public class PublickeyBackingEngine implements BackingEngine {
 
     private void addUserInternal(String username, String publickey) {
         String[] infos = null;
-        StringBuffer userInfoBuffer = new StringBuffer();
+        StringBuilder userInfoBuffer = new StringBuilder();
 
         String newPublickey = publickey;
 
@@ -109,6 +109,16 @@ public class PublickeyBackingEngine implements BackingEngine {
     }
 
     @Override
+    public UserPrincipal lookupUser(String username) {
+        for (UserPrincipal userPrincipal : listUsers()) {
+            if (userPrincipal.getName().equals(username)) {
+                return userPrincipal;
+            }
+        }
+        return null;
+    }
+
+    @Override
     public List<RolePrincipal> listRoles(Principal principal) {
         String userName = principal.getName();
         if (principal instanceof  GroupPrincipal) {
@@ -162,7 +172,7 @@ public class PublickeyBackingEngine implements BackingEngine {
     @Override
     public void deleteRole(String username, String role) {
         String[] infos = null;
-        StringBuffer userInfoBuffer = new StringBuffer();
+        StringBuilder userInfoBuffer = new StringBuilder();
 
         String userInfos = users.get(username);
 

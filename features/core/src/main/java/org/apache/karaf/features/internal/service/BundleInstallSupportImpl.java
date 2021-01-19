@@ -59,11 +59,16 @@ import org.osgi.resource.Wire;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Interaction with OSGi framework, where bundles are installed into it via {@link RegionDigraph}. After a bundle
+ * is installed, it may be controlled in standard way via {@link Bundle} interface.
+ */
 public class BundleInstallSupportImpl implements BundleInstallSupport {
     private static final Logger LOGGER = LoggerFactory.getLogger(BundleInstallSupportImpl.class);
     
     private final RegionDigraph digraph;
     private final Bundle ourBundle;
+    private final Bundle cmBundle;
     private final BundleContext ourBundleContext;
     private final FeatureConfigInstaller configInstaller;
     
@@ -81,11 +86,13 @@ public class BundleInstallSupportImpl implements BundleInstallSupport {
     public BundleInstallSupportImpl(Bundle ourBundle,
                    BundleContext ourBundleContext,
                    BundleContext systemBundleContext,
+                   Bundle cmBundle,
                    FeatureConfigInstaller configInstaller,
                    RegionDigraph digraph) {
         this.ourBundle = ourBundle;
         this.ourBundleContext = ourBundleContext;
         this.systemBundleContext = systemBundleContext;
+        this.cmBundle = cmBundle;
         this.configInstaller = configInstaller;
         this.digraph = digraph;
         if (systemBundleContext != null) {
@@ -98,6 +105,7 @@ public class BundleInstallSupportImpl implements BundleInstallSupport {
     public void unregister() {
         if (hookRegistration != null) {
             hookRegistration.unregister();
+            hookRegistration = null;
         }
     }
     
@@ -132,13 +140,17 @@ public class BundleInstallSupportImpl implements BundleInstallSupport {
 
     @Override
     public void updateBundle(Bundle bundle, String uri, InputStream is) throws BundleException {
+        File file = null;
         // We need to wrap the bundle to insert a Bundle-UpdateLocation header
         try {
-            File file = BundleUtils.fixBundleWithUpdateLocation(is, uri);
+            file = BundleUtils.fixBundleWithUpdateLocation(is, uri);
             bundle.update(new FileInputStream(file));
-            file.delete();
         } catch (IOException e) {
             throw new BundleException("Unable to update bundle", e);
+        } finally {
+            if (file != null) {
+                file.delete();
+            }
         }
     }
 
@@ -291,6 +303,13 @@ public class BundleInstallSupportImpl implements BundleInstallSupport {
     }
 
     @Override
+    public void deleteConfigs(Feature feature) throws IOException, InvalidSyntaxException {
+        if (configInstaller != null) {
+            configInstaller.uninstallFeatureConfigs(feature);
+        }
+    }
+
+    @Override
     public void installLibraries(Feature feature) {
         // TODO: install libraries
     }
@@ -311,7 +330,8 @@ public class BundleInstallSupportImpl implements BundleInstallSupport {
         for (Bundle bundle : systemBundleContext.getBundles()) {
             info.bundles.put(bundle.getBundleId(), bundle);
         }
-        info.systemBundle = info.bundles.get(0);
+        info.cmBundle = cmBundle;
+        info.systemBundle = info.bundles.get(0L);
         return info;
     }
 }

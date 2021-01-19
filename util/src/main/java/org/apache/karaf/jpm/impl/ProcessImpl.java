@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.InterruptedIOException;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -59,13 +60,14 @@ public class ProcessImpl implements Process {
             return ret == 0;
         } else {
             try {
-                java.lang.Process process = new java.lang.ProcessBuilder("ps", "-p", Integer.toString(pid)).start();
-                BufferedReader r = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                r.readLine(); // skip headers
-                String s = r.readLine();
-                boolean running = s != null && s.length() > 0;
-                process.waitFor();
-                return running;
+                java.lang.Process process = new java.lang.ProcessBuilder("ps", "-o", "stat", "-p", Integer.toString(pid)).start();
+                try (BufferedReader r = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    r.readLine(); // skip headers
+                    String s = r.readLine();
+                    boolean running = s != null && s.length() > 0 && s.indexOf("Z") < 0;
+                    process.waitFor();
+                    return running;
+                }
             } catch (InterruptedException e) {
                 throw new InterruptedIOException();
             }
@@ -109,10 +111,10 @@ public class ProcessImpl implements Process {
     }
 
     public static Process create(File dir, String command) throws IOException {
-        //File input = File.createTempFile("jpm.", ".input");
-        //File output = File.createTempFile("jpm.", ".output");
-        //File error = File.createTempFile("jpm.", ".error");
-        File pidFile = File.createTempFile("jpm.", ".pid");
+        //File input = Files.createTempFile("jpm.", ".input").toFile();
+        //File output = Files.createTempFile("jpm.", ".output").toFile();
+        //File error = Files.createTempFile("jpm.", ".error").toFile();
+        File pidFile = Files.createTempFile("jpm.", ".pid").toFile();
         try {
             Map<String, String> props = new HashMap<>();
             //props.put("${in.file}", input.getCanonicalPath());
@@ -140,15 +142,10 @@ public class ProcessImpl implements Process {
     }
 
     private static int readPid(File pidFile) throws IOException {
-        InputStream is = new FileInputStream(pidFile);
-        try {
+        try (InputStream is = new FileInputStream(pidFile)) {
             BufferedReader r = new BufferedReader(new InputStreamReader(is));
             String pidString = r.readLine();
             return Integer.valueOf(pidString);
-        } finally {
-            try {
-                is.close();
-            } catch (IOException e) {}
         }
     }
 

@@ -74,8 +74,8 @@ public class DefaultActionPreparator implements ActionPreparator {
         }
         
         // Populate
-        Map<Option, Object> optionValues = new HashMap<Option, Object>();
-        Map<Argument, Object> argumentValues = new HashMap<Argument, Object>();
+        Map<Option, Object> optionValues = new HashMap<>();
+        Map<Argument, Object> argumentValues = new HashMap<>();
         boolean processOptions = true;
         int argIndex = 0;
         for (Iterator<Object> it = params.iterator(); it.hasNext(); ) {
@@ -121,7 +121,7 @@ public class DefaultActionPreparator implements ActionPreparator {
                     @SuppressWarnings("unchecked")
                     List<Object> l = (List<Object>) optionValues.get(option);
                     if (l == null) {
-                        l = new ArrayList<Object>();
+                        l = new ArrayList<>();
                         optionValues.put(option, l);
                     }
                     l.add(value);
@@ -144,7 +144,7 @@ public class DefaultActionPreparator implements ActionPreparator {
                     @SuppressWarnings("unchecked")
                     List<Object> l = (List<Object>) argumentValues.get(argument);
                     if (l == null) {
-                        l = new ArrayList<Object>();
+                        l = new ArrayList<>();
                         argumentValues.put(argument, l);
                     }
                     l.add(param);
@@ -218,6 +218,6 @@ public class DefaultActionPreparator implements ActionPreparator {
 
     private int getWidth(CommandSession session) {
         Object cols = session.get("COLUMNS");
-        return  (cols != null && cols instanceof Integer) ? (Integer)cols : 80;
+        return cols instanceof Integer ? (Integer)cols : 80;
     }
 }

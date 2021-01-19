@@ -16,24 +16,59 @@
  */
 package org.apache.karaf.http.core.internal.osgi;
 
+import org.apache.karaf.http.core.BalancingPolicy;
+import org.apache.karaf.http.core.ProxyService;
 import org.apache.karaf.http.core.ServletService;
 import org.apache.karaf.http.core.internal.HttpMBeanImpl;
+import org.apache.karaf.http.core.internal.ProxyServiceImpl;
 import org.apache.karaf.http.core.internal.ServletEventHandler;
 import org.apache.karaf.http.core.internal.ServletServiceImpl;
+import org.apache.karaf.http.core.internal.proxy.RandomBalancingPolicy;
+import org.apache.karaf.http.core.internal.proxy.RoundRobinBalancingPolicy;
 import org.apache.karaf.util.tracker.BaseActivator;
+import org.apache.karaf.util.tracker.annotation.Managed;
 import org.apache.karaf.util.tracker.annotation.ProvideService;
+import org.apache.karaf.util.tracker.annotation.RequireService;
 import org.apache.karaf.util.tracker.annotation.Services;
 import org.ops4j.pax.web.service.spi.ServletListener;
 import org.osgi.framework.BundleEvent;
 import org.osgi.framework.BundleListener;
+import org.osgi.service.cm.ConfigurationAdmin;
+import org.osgi.service.cm.ManagedService;
+import org.osgi.service.http.HttpService;
 
-@Services(provides = @ProvideService(ServletService.class))
-public class Activator extends BaseActivator {
+import java.util.Dictionary;
+import java.util.Hashtable;
+
+@Services(
+        requires = {
+                @RequireService(HttpService.class),
+                @RequireService(ConfigurationAdmin.class)
+        },
+        provides = {
+                @ProvideService(ServletService.class),
+                @ProvideService(ProxyService.class)
+        }
+)
+@Managed("org.apache.karaf.http")
+public class Activator extends BaseActivator implements ManagedService {
 
     private BundleListener listener;
 
+    private ProxyService proxyService;
+
     @Override
     protected void doStart() throws Exception {
+        HttpService httpService = getTrackedService(HttpService.class);
+        if (httpService == null) {
+            return;
+        }
+
+        ConfigurationAdmin configurationAdmin = getTrackedService(ConfigurationAdmin.class);
+        if (configurationAdmin == null) {
+            return;
+        }
+
         final ServletEventHandler servletEventHandler = new ServletEventHandler();
         register(ServletListener.class, servletEventHandler);
 
@@ -49,13 +84,36 @@ public class Activator extends BaseActivator {
         };
         bundleContext.addBundleListener(listener);
 
-        HttpMBeanImpl httpMBean = new HttpMBeanImpl(servletService);
+        RandomBalancingPolicy randomBalancingPolicy = new RandomBalancingPolicy();
+        Hashtable<String, String> randomBalancingPolicyProperties = new Hashtable<>();
+        randomBalancingPolicyProperties.put("type", "random");
+        register(BalancingPolicy.class, randomBalancingPolicy, randomBalancingPolicyProperties);
+
+        RoundRobinBalancingPolicy roundRobinBalancingPolicy = new RoundRobinBalancingPolicy();
+        Hashtable<String, String> roundRobinBalancingPolicyProperties = new Hashtable<>();
+        roundRobinBalancingPolicyProperties.put("type", "round-robin");
+        register(BalancingPolicy.class, roundRobinBalancingPolicy, roundRobinBalancingPolicyProperties);
+
+        proxyService = new ProxyServiceImpl(httpService, configurationAdmin, bundleContext);
+        register(ProxyService.class, proxyService);
+
+        HttpMBeanImpl httpMBean = new HttpMBeanImpl(servletService, proxyService);
         registerMBean(httpMBean, "type=http");
     }
 
     @Override
     protected void doStop() {
-        bundleContext.removeBundleListener(listener);
+        if (listener != null) {
+            bundleContext.removeBundleListener(listener);
+            listener = null;
+        }
         super.doStop();
+    }
+
+    @Override
+    public void updated(Dictionary<String, ?> properties) {
+        if (proxyService != null) {
+            proxyService.update(properties);
+        }
     }
 }

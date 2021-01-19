@@ -24,14 +24,13 @@ import java.io.OutputStreamWriter;
 import java.io.RandomAccessFile;
 import java.io.Writer;
 import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.nio.channels.FileLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.felix.utils.properties.TypedProperties;
+import org.apache.felix.utils.properties.Properties;
 import org.apache.karaf.util.locks.FileLockUtils;
 import org.osgi.framework.launch.Framework;
 
@@ -79,7 +78,7 @@ public class InstanceHelper {
                         return;
                     }
                 }
-                FileLockUtils.execute(propertiesFile, (TypedProperties props) -> {
+                FileLockUtils.execute(propertiesFile, (Properties props) -> {
                     if (props.isEmpty()) {
                         // it's the first instance running, so we consider as root
                         props.put("count", "1");
@@ -107,27 +106,26 @@ public class InstanceHelper {
         }
     }
 
+    /* KARAF-5798: consistent way to obtain the process ID */
     private static String getPid() {
-        String pid = ManagementFactory.getRuntimeMXBean().getName();
-        if (pid.indexOf('@') > 0) {
-            pid = pid.substring(0, pid.indexOf('@'));
-        }
-        return pid;
-    }
+        String name = ManagementFactory.getRuntimeMXBean().getName();
+        /*
+         * RuntimeMXBean#getName() makes no guarantees about the name, so use a
+         * regex to match the common(?) "pid@host" format
+         */
+        Pattern pattern = Pattern.compile("^([0-9]+)@.+$");
+        Matcher matcher = pattern.matcher(name);
+        return matcher.matches() ? matcher.group(1) : name;
+     }
 
-    private static void writePid(String pidFile) {
+    /* KARAF-5798: now called by Main#launch() */
+    static void writePid(String pidFile) {
         try {
             if (pidFile != null) {
-                RuntimeMXBean rtb = ManagementFactory.getRuntimeMXBean();
-                String processName = rtb.getName();
-                Pattern pattern = Pattern.compile("^([0-9]+)@.+$", Pattern.CASE_INSENSITIVE);
-                Matcher matcher = pattern.matcher(processName);
-                if (matcher.matches()) {
-                    int pid = Integer.parseInt(matcher.group(1));
-                    Writer w = new OutputStreamWriter(new FileOutputStream(pidFile));
-                    w.write(Integer.toString(pid));
-                    w.close();
-                }
+                int pid = Integer.parseInt(getPid());
+                Writer w = new OutputStreamWriter(new FileOutputStream(pidFile));
+                w.write(Integer.toString(pid));
+                w.close();
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -135,7 +133,6 @@ public class InstanceHelper {
     }
 
     static AutoCloseable setupShutdown(ConfigProperties config, Framework framework) {
-        writePid(config.pidFile);
         try {
             int port = config.shutdownPort;
             String host = config.shutdownHost;

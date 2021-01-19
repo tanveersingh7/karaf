@@ -61,15 +61,22 @@ public class JaasHelper {
         if (index > 0) {
             clazz = requestedRole.substring(0, index);
             role = requestedRole.substring(index + 1);
+            
+            for (Principal p : principals) {
+                if (clazz.equals(p.getClass().getName()) && role.equals(p.getName())) {
+                    return true;
+                }
+            }
         } else {
-            clazz = RolePrincipal.class.getName();
             role = requestedRole;
-        }
-        for (Principal p : principals) {
-            if (clazz.equals(p.getClass().getName()) && role.equals(p.getName())) {
-                return true;
+            
+            for (Principal p : principals) {
+                if (RolePrincipal.class.isAssignableFrom(p.getClass()) && role.equals(p.getName())) {
+                    return true;
+                }
             }
         }
+
         return false;
     }
 
@@ -127,11 +134,8 @@ public class JaasHelper {
             for (int i = 0; i < cLen; i++) {
                 newDomains[i] = new DelegatingProtectionDomain(currentDomains[i], principals);
             }
-            for (int i = 0; i < aLen; i++) {
-                newDomains[cLen + i] = assignedDomains[i];
-            }
-            newDomains = optimize(newDomains);
-            return newDomains;
+            System.arraycopy(assignedDomains, 0, newDomains, cLen, aLen);
+            return optimize(newDomains);
         }
 
         private ProtectionDomain[] optimize(ProtectionDomain[] domains) {

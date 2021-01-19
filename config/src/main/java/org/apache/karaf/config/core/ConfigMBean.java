@@ -57,6 +57,15 @@ public interface ConfigMBean {
     void delete(String pid) throws MBeanException;
 
     /**
+     * Check if a configuration identified by the given PID exists.
+     *
+     * @param pid The configuration PID to check.
+     * @return true if the configuration exists, false else.
+     * @throws MBeanException in case of MBean failure.
+     */
+    boolean exists(String pid) throws MBeanException;
+
+    /**
      * Get the list of properties for a configuration PID.
      *
      * @param pid the configuration PID.
@@ -111,6 +120,30 @@ public interface ConfigMBean {
      * @throws MBeanException in case of MBean failure.
      */
     void update(String pid, Map<String, String> properties) throws MBeanException;
+
+    /**
+     * Add new properties or update existing ones (without removing others) in a given configuration.
+     *
+     * @param pid the configuration PID.
+     * @param properties the properties to add/update.
+     * @throws MBeanException in case of MBean failure.
+     */
+    void append(String pid, Map<String, String> properties) throws MBeanException;
+
+    /**
+     * Delete properties from a configuration.
+     *
+     * @param pid the configuration PID.
+     * @param properties the properties to delete from the configuration.
+     * @throws MBeanException in case of MBean failure.
+     */
+    void delete(String pid, List<String> properties) throws MBeanException;
+
+    String createFactoryConfiguration(String factoryPid) throws MBeanException;
+
+    String createFactoryConfiguration(String factoryPid, String alias) throws MBeanException;
+
+    String createFactoryConfiguration(String factoryPid, String alias, Map<String, String> properties) throws MBeanException;
     
     /**
      * Create a factory based configuration.

@@ -79,7 +79,7 @@ public class DocBookCommandHelpPrinter extends AbstractCommandHelpPrinter {
         out.println("    </para>");
         out.println("  </section>");
 
-        StringBuffer syntax = new StringBuffer();
+        StringBuilder syntax = new StringBuilder();
         syntax.append(String.format("%s:%s", command.scope(), command.name()));
         if (options.size() > 0) {
             syntax.append(" [options]");
@@ -130,10 +130,10 @@ public class DocBookCommandHelpPrinter extends AbstractCommandHelpPrinter {
             out.println("    <informaltable>");
 
             for (Option option : options) {
-                String opt = option.name();
+                StringBuilder opt = new StringBuilder(option.name());
                 String description = option.description();
                 for (String alias : option.aliases()) {
-                    opt += ", " + alias;
+                    opt.append(", ").append(alias);
                 }
                 Object o = getDefaultValue(action, optFields.get(option));
                 String defaultValue = getDefaultValueString(o);

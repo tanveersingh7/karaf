@@ -33,14 +33,14 @@
     </description>
 
     <properties>
-        <maven-bundle-plugin.version>^felix.plugin.version^</maven-bundle-plugin.version>
+        <maven-bundle-plugin.version>^felix.maven-bundle-plugin.version^</maven-bundle-plugin.version>
         <osgi.version>^osgi.version^</osgi.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>org.osgi</groupId>
-            <artifactId>org.osgi.core</artifactId>
+            <artifactId>osgi.core</artifactId>
             <version>${osgi.version}</version>
             <scope>provided</scope>
         </dependency>

@@ -77,7 +77,7 @@ public class UserConfCommandHelpPrinter extends AbstractCommandHelpPrinter {
         out.println(command.description());
         out.println();
 
-        StringBuffer syntax = new StringBuffer();
+        StringBuilder syntax = new StringBuilder();
         syntax.append(String.format("%s:%s", command.scope(), command.name()));
         if (options.size() > 0) {
             syntax.append(" \\[options\\]");
@@ -112,10 +112,10 @@ public class UserConfCommandHelpPrinter extends AbstractCommandHelpPrinter {
             out.println("h2. Options");
             out.println("|| Name || Description ||");
             for (Option option : options) {
-                String opt = option.name();
+                StringBuilder opt = new StringBuilder(option.name());
                 String desc = option.description();
                 for (String alias : option.aliases()) {
-                    opt += ", " + alias;
+                    opt.append(", ").append(alias);
                 }
                 Object o = getDefaultValue(action, optFields.get(option));
                 String defaultValue = getDefaultValueString(o);

@@ -24,7 +24,7 @@
     <parent>
         <groupId>org.apache.karaf.tooling</groupId>
         <artifactId>tooling</artifactId>
-        <version>4.2.0-SNAPSHOT</version>
+        <version>4.3.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -40,14 +40,35 @@
         <jacoco-class-line-covered-ratio>0.00</jacoco-class-line-covered-ratio>
         <jacoco-class-instruction-covered-ratio>0.00</jacoco-class-instruction-covered-ratio>
         <jacoco-class-missed-count-maximum>1</jacoco-class-missed-count-maximum>
-        <plexus-utils.version>3.0.24</plexus-utils.version>
     </properties>
 
-    <dependencies>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.karaf</groupId>
+                <artifactId>karaf-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
+    <dependencies>
+        <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+            <version>${javax.annotation.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-plugin-api</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>javax.annotation</groupId>
+                    <artifactId>jsr250-api</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.maven.resolver</groupId>
@@ -131,12 +152,25 @@
                     <groupId>org.codehaus.plexus</groupId>
                     <artifactId>plexus-archiver</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>org.osgi</groupId>
+                    <artifactId>org.osgi.core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.maven</groupId>
+                    <artifactId>maven-archiver</artifactId>
+                </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-archiver</artifactId>
+            <version>2.6</version>
         </dependency>
         <dependency>
             <groupId>org.codehaus.plexus</groupId>
             <artifactId>plexus-archiver</artifactId>
-            <version>3.5</version>
+            <version>3.6.0</version>
         </dependency>
         <dependency>
             <groupId>org.apache.felix</groupId>
@@ -159,6 +193,12 @@
         <dependency>
             <groupId>org.apache.felix</groupId>
             <artifactId>org.apache.felix.resolver</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.osgi</groupId>
+                    <artifactId>org.osgi.core</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.ops4j.pax.url</groupId>
@@ -212,12 +252,16 @@
         </dependency>
         <dependency>
             <groupId>org.osgi</groupId>
-            <artifactId>org.osgi.core</artifactId>
+            <artifactId>osgi.core</artifactId>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.xbean</groupId>
             <artifactId>xbean-finder-shaded</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.xml.bind</groupId>
+            <artifactId>jakarta.xml.bind-api</artifactId>
         </dependency>
     </dependencies>
 
@@ -225,10 +269,6 @@
         <resources>
             <resource>
                 <directory>${project.basedir}/src/main/resources</directory>
-            </resource>
-            <resource>
-                <directory>${project.basedir}/src/main/filtered-resources</directory>
-                <filtering>true</filtering>
             </resource>
         </resources>
         <testResources>
@@ -244,7 +284,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-invoker-plugin</artifactId>
-                <version>2.0.0</version>
+                <version>3.2.1</version>
                 <configuration>
                     <debug>true</debug>
                     <projectsDirectory>src/it</projectsDirectory>
@@ -259,6 +299,7 @@
                         <pomExclude>test-assembly/pom.xml</pomExclude>
                         <pomExclude>test-check-dependencies-failure/pom.xml</pomExclude>
                         <pomExclude>test-assembly-prop-edits/pom.xml</pomExclude>
+                        <pomExclude>test-dockerfile/pom.xml</pomExclude>
                     </pomExcludes>
                     <postBuildHookScript>verify</postBuildHookScript>
                     <localRepositoryPath>${project.build.directory}/system</localRepositoryPath>
@@ -293,6 +334,7 @@
                                 <pomExclude>test-assembly/pom.xml</pomExclude>
                                 <pomExclude>test-check-dependencies-failure/pom.xml</pomExclude>
                                 <pomExclude>test-assembly-prop-edits/pom.xml</pomExclude>
+                                <pomExclude>test-dockerfile/pom.xml</pomExclude>
                             </pomExcludes>
                         </configuration>
                     </execution>
@@ -307,7 +349,7 @@
             </plugin>
             <plugin>
                 <artifactId>maven-plugin-plugin</artifactId>
-                <version>3.5</version>
+                <version>3.6.0</version>
                 <executions>
                     <execution>
                         <id>default-descriptor</id>
@@ -331,7 +373,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.7.9</version>
+                <version>0.8.5</version>
                 <executions>
                     <execution>
                         <goals>
@@ -381,7 +423,6 @@
         </plugins>
     </build>
 
-
     <reporting>
         <!--<outputDirectory>target/site</outputDirectory>-->
         <plugins>
@@ -395,71 +436,6 @@
         </plugins>
     </reporting>
     <profiles>
-        <profile>
-	        <id>java9</id>
-	        <properties>
-                <plexus-utils.version>3.1.0</plexus-utils.version>
-                <asm.version>6.0_BETA</asm.version>
-                <mvn.opts>--add-exports=java.base/sun.net.www.protocol.http=ALL-UNNAMED --add-exports=java.base/sun.net.www.protocol.https=ALL-UNNAMED --add-exports=java.xml.bind/com.sun.xml.internal.bind.v2.runtime=ALL-UNNAMED --add-exports=jdk.xml.dom/org.w3c.dom.html=ALL-UNNAMED --add-modules java.activation,java.xml.ws.annotation,java.corba,java.transaction,java.xml.bind,java.xml.ws -Djava.io.tmpdir=${project.build.directory}</mvn.opts>
-	        </properties>
-                <dependencies>
-                    <dependency>
-                        <groupId>javax.xml.bind</groupId>
-                        <artifactId>jaxb-api</artifactId>
-                        <version>2.3.0</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>javax.activation</groupId>
-                        <artifactId>activation</artifactId>
-                        <version>1.1.1</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>com.sun.xml.bind</groupId>
-                        <artifactId>jaxb-core</artifactId>
-                        <version>${jaxb.version}</version>
-                        <exclusions>
-                            <exclusion>
-                                <groupId>org.glassfish.jaxb</groupId>
-                                <artifactId>jaxb-core</artifactId>
-                            </exclusion>
-                            <exclusion>
-                                <groupId>org.glassfish.jaxb</groupId>
-                                <artifactId>txw2</artifactId>
-                            </exclusion>
-                        </exclusions>
-                    </dependency>
-                    <dependency>
-                        <groupId>com.sun.xml.bind</groupId>
-                        <artifactId>jaxb-impl</artifactId>
-                        <version>${jaxb.version}</version>
-                        <exclusions>
-                            <exclusion>
-                                <groupId>javax.xml.bind</groupId>
-                                <artifactId>jsr173_api</artifactId>
-                            </exclusion>
-                            <exclusion>
-                                <groupId>javax.xml</groupId>
-                                <artifactId>jsr173</artifactId>
-                            </exclusion>
-                            <exclusion>
-                                <groupId>javax.activation</groupId>
-                                <artifactId>activation</artifactId>
-                            </exclusion>
-                            <exclusion>
-                                <groupId>javax.xml.bind</groupId>
-                                <artifactId>activation</artifactId>
-                            </exclusion>
-                            <exclusion>
-                                <groupId>javax.xml.bind</groupId>
-                                <artifactId>jaxb-api</artifactId>
-                            </exclusion>
-                        </exclusions>
-                    </dependency>
-                </dependencies>
-	        <activation>
-        	    <jdk>9</jdk>
-            </activation>
-	</profile>
         <profile>
             <id>skiptests</id>
             <properties>
@@ -483,7 +459,24 @@
                 </property>
             </activation>
         </profile>
+        <profile>
+            <id>java11</id>
+            <activation>
+                <jdk>[11,)</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <excludes>
+                                <exclude>**/*RunMojoTest.java</exclude>
+                            </excludes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
-
-
 </project>

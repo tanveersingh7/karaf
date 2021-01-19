@@ -23,7 +23,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.Socket;
@@ -31,17 +30,19 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.TreeMap;
 
 import org.apache.felix.utils.properties.InterpolationHelper;
 import org.apache.felix.utils.properties.Properties;
-import org.apache.felix.utils.properties.TypedProperties;
 import org.apache.karaf.instance.core.Instance;
 import org.apache.karaf.instance.core.InstanceService;
 import org.apache.karaf.instance.core.InstanceSettings;
@@ -85,7 +86,7 @@ public class InstanceServiceImpl implements InstanceService {
 
     private static final String DEFAULT_SHUTDOWN_COMMAND = "SHUTDOWN";
 
-    public static final String DEFAULT_JAVA_OPTS = "-server -Xmx512M -Dcom.sun.management.jmxremote -XX:+UnlockDiagnosticVMOptions";
+    public static final String DEFAULT_JAVA_OPTS = "-Xmx512M -Dcom.sun.management.jmxremote -XX:+UnlockDiagnosticVMOptions";
 
     private LinkedHashMap<String, InstanceImpl> proxies = new LinkedHashMap<>();
 
@@ -109,10 +110,10 @@ public class InstanceServiceImpl implements InstanceService {
         public State() {
             //read port start value from the root instance configuration
             try {
-                TypedProperties shellProperty = new TypedProperties();
+                Properties shellProperty = new Properties();
                 shellProperty.load(new File(System.getProperty("karaf.etc"), "org.apache.karaf.shell.cfg"));
                 defaultSshPortStart = getInt(shellProperty,"sshPort", 8101);
-                TypedProperties managementProperty = new TypedProperties();
+                Properties managementProperty = new Properties();
                 managementProperty.load(new File(System.getProperty("karaf.etc"), "org.apache.karaf.management.cfg"));
                 defaultRmiRegistryPortStart = getInt(managementProperty, "rmiRegistryPort", 1099);
                 defaultRmiServerPortStart = getInt(managementProperty, "rmiServerPort", 1099);
@@ -120,8 +121,8 @@ public class InstanceServiceImpl implements InstanceService {
                 LOGGER.debug("Could not read port start value from the root instance configuration.", e);
             }
         }
-        
-        
+
+
     }
 
     public InstanceServiceImpl() {
@@ -147,7 +148,7 @@ public class InstanceServiceImpl implements InstanceService {
         this.stopTimeout = stopTimeout;
     }
 
-    private State loadData(TypedProperties storage) {
+    private State loadData(Properties storage) {
         State state = new State();
         int count = getInt(storage, "count", 0);
         state.defaultSshPortStart = getInt(storage, "ssh.port", state.defaultSshPortStart);
@@ -179,7 +180,7 @@ public class InstanceServiceImpl implements InstanceService {
         return state;
     }
 
-    private void saveData(State state, TypedProperties storage) {
+    private void saveData(State state, Properties storage) {
         storage.put("ssh.port", Integer.toString(state.defaultSshPortStart));
         storage.put("rmi.registry.port", Integer.toString(state.defaultRmiRegistryPortStart));
         storage.put("rmi.server.port", Integer.toString(state.defaultRmiServerPortStart));
@@ -203,7 +204,7 @@ public class InstanceServiceImpl implements InstanceService {
         }
     }
 
-    private static boolean getBool(TypedProperties storage, String name, boolean def) {
+    private static boolean getBool(Properties storage, String name, boolean def) {
         Object value = storage.get(name);
         if (value instanceof Boolean) {
             return (Boolean) value;
@@ -214,7 +215,7 @@ public class InstanceServiceImpl implements InstanceService {
         }
     }
 
-    private static int getInt(TypedProperties storage, String name, int def) {
+    private static int getInt(Properties storage, String name, int def) {
         Object value = storage.get(name);
         if (value instanceof Number) {
             return ((Number) value).intValue();
@@ -225,7 +226,7 @@ public class InstanceServiceImpl implements InstanceService {
         }
     }
 
-    private static String getString(TypedProperties storage, String name, String def) {
+    private static String getString(Properties storage, String name, String def) {
         Object value = storage.get(name);
         return value != null ? value.toString() : def;
     }
@@ -274,7 +275,7 @@ public class InstanceServiceImpl implements InstanceService {
             }
         }
     }
-    
+
     private static void logDebug(String message, boolean printOutput, Object... args) {
         if (LOGGER.isDebugEnabled() || printOutput) {
             String formatted = String.format(message, args);
@@ -331,20 +332,40 @@ public class InstanceServiceImpl implements InstanceService {
 
             String[] resources =
             {
-                "etc/all.policy",
-                "etc/config.properties",
-                "etc/custom.properties",
-                "etc/distribution.info",
-                "etc/equinox-debug.properties",
-                "etc/java.util.logging.properties",
-                "etc/jre.properties",
-                "etc/keys.properties",
-                "etc/org.ops4j.pax.logging.cfg",
-                "etc/org.ops4j.pax.url.mvn.cfg",
-                "etc/shell.init.script",
-                "etc/users.properties",
-                "etc/scripts/shell.completion.script",
-                FEATURES_CFG
+                    "etc/all.policy",
+                    "etc/config.properties",
+                    "etc/custom.properties",
+                    "etc/distribution.info",
+                    "etc/equinox-debug.properties",
+                    "etc/java.util.logging.properties",
+                    "etc/jmx.acl.cfg",
+                    "etc/jmx.acl.java.lang.Memory.cfg",
+                    "etc/jmx.acl.org.apache.karaf.bundle.cfg",
+                    "etc/jmx.acl.org.apache.karaf.config.cfg",
+                    "etc/jmx.acl.org.apache.karaf.security.jmx.cfg",
+                    "etc/jmx.acl.osgi.compendium.cm.cfg",
+                    "etc/jre.properties",
+                    "etc/keys.properties",
+                    "etc/org.apache.felix.eventadmin.impl.EventAdmin.cfg",
+                    "etc/org.apache.felix.fileinstall-deploy.cfg",
+                    "etc/org.apache.karaf.command.acl.bundle.cfg",
+                    "etc/org.apache.karaf.command.acl.config.cfg",
+                    "etc/org.apache.karaf.command.acl.feature.cfg",
+                    "etc/org.apache.karaf.command.acl.jaas.cfg",
+                    "etc/org.apache.karaf.command.acl.kar.cfg",
+                    "etc/org.apache.karaf.command.acl.scope_bundle.cfg",
+                    "etc/org.apache.karaf.command.acl.shell.cfg",
+                    "etc/org.apache.karaf.command.acl.system.cfg",
+                    "etc/org.apache.karaf.features.repos.cfg",
+                    "etc/org.apache.karaf.jaas.cfg",
+                    "etc/org.apache.karaf.kar.cfg",
+                    "etc/org.apache.karaf.log.cfg",
+                    "etc/org.ops4j.pax.logging.cfg",
+                    "etc/org.ops4j.pax.url.mvn.cfg",
+                    "etc/shell.init.script",
+                    "etc/users.properties",
+                    "etc/scripts/shell.completion.script",
+                    FEATURES_CFG
             };
             copyResourcesToDir(resources, karafBase, textResources, printOutput);
             addFeaturesFromSettings(new File(karafBase, FEATURES_CFG), settings);
@@ -384,9 +405,9 @@ public class InstanceServiceImpl implements InstanceService {
             copyFilteredResourcesToDir(filteredResources, karafBase, textResources, props, printOutput);
 
             try {
-                chmod(new File(karafBase, "bin/karaf"), "a+x");
-                chmod(new File(karafBase, "bin/start"), "a+x");
-                chmod(new File(karafBase, "bin/stop"), "a+x");
+                makeFileExecutable(new File(karafBase, "bin/karaf"));
+                makeFileExecutable(new File(karafBase, "bin/start"));
+                makeFileExecutable(new File(karafBase, "bin/stop"));
             } catch (IOException e) {
                 LOGGER.debug("Could not set file mode on scripts.", e);
             }
@@ -425,11 +446,11 @@ public class InstanceServiceImpl implements InstanceService {
         }, true);
     }
 
-    private static void appendToPropList(TypedProperties p, String key, List<String> elements) {
+    private static void appendToPropList(Properties p, String key, List<String> elements) {
         if (elements == null) {
             return;
         }
-        StringBuilder sb = new StringBuilder(p.get(key).toString().trim());
+        StringBuilder sb = new StringBuilder(p.get(key).trim());
         for (String f : elements) {
             if (sb.length() > 0) {
                 sb.append(',');
@@ -490,17 +511,29 @@ public class InstanceServiceImpl implements InstanceService {
 
         String jdkOpts;
         if (!System.getProperty("java.version").startsWith("1.")) {
-            jdkOpts = " --add-opens java.base/java.security=ALL-UNNAMED" +
+            StringBuilder jdk9Classpath = classpathFromLibDir(new File(new File(System.getProperty("karaf.home"), "lib"), "jdk9plus"));
+            if (jdk9Classpath.length() > 0) {
+                classpath.append(System.getProperty("path.separator"));
+                classpath.append(jdk9Classpath);
+            }
+            jdkOpts = " --add-reads=java.xml=java.logging" +
+                      " --add-exports=java.base/org.apache.karaf.specs.locator=java.xml,ALL-UNNAMED" +
+                      " --patch-module java.base=lib/endorsed/org.apache.karaf.specs.locator-" + System.getProperty("karaf.version") + ".jar" +
+                      " --patch-module java.xml=lib/endorsed/org.apache.karaf.specs.java.xml-" + System.getProperty("karaf.version") + ".jar" +
+                      " --add-opens java.base/java.security=ALL-UNNAMED" +
                       " --add-opens java.base/java.net=ALL-UNNAMED" +
                       " --add-opens java.base/java.lang=ALL-UNNAMED" +
                       " --add-opens java.base/java.util=ALL-UNNAMED" +
+                      " --add-opens java.naming/javax.naming.spi=ALL-UNNAMED" +
+                      " --add-opens java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" +
+                      " --add-exports=java.base/sun.net.www.protocol.file=ALL-UNNAMED" +
+                      " --add-exports=java.base/sun.net.www.protocol.ftp=ALL-UNNAMED" +
                       " --add-exports=java.base/sun.net.www.protocol.http=ALL-UNNAMED" +
                       " --add-exports=java.base/sun.net.www.protocol.https=ALL-UNNAMED" +
                       " --add-exports=java.base/sun.net.www.protocol.jar=ALL-UNNAMED" +
-                      " --add-exports=java.xml.bind/com.sun.xml.internal.bind.v2.runtime=ALL-UNNAMED" +
+                      " --add-exports=java.base/sun.net.www.content.text=ALL-UNNAMED" +
                       " --add-exports=jdk.xml.dom/org.w3c.dom.html=ALL-UNNAMED" +
-                      " --add-exports=jdk.naming.rmi/com.sun.jndi.url.rmi=ALL-UNNAMED" +
-                      " --add-modules java.xml.ws.annotation,java.corba,java.transaction,java.xml.bind,java.xml.ws";
+                      " --add-exports=jdk.naming.rmi/com.sun.jndi.url.rmi=ALL-UNNAMED";
         } else {
             jdkOpts = " -Djava.endorsed.dirs=\"" + new File(new File(new File(System.getProperty("java.home"), "jre"), "lib"), "endorsed") + System.getProperty("path.separator") + new File(new File(System.getProperty("java.home"), "lib"), "endorsed") + System.getProperty("path.separator") + new File(libDir, "endorsed").getCanonicalPath() + "\""
                     + " -Djava.ext.dirs=\"" + new File(new File(new File(System.getProperty("java.home"), "jre"), "lib"), "ext") + System.getProperty("path.separator") + new File(new File(System.getProperty("java.home"), "lib"), "ext") + System.getProperty("path.separator") + new File(libDir, "ext").getCanonicalPath() + "\"";
@@ -515,7 +548,9 @@ public class InstanceServiceImpl implements InstanceService {
                 + " -Dkaraf.base=\"" + new File(location).getCanonicalPath() + "\""
                 + " -Dkaraf.data=\"" + new File(new File(location).getCanonicalPath(), "data") + "\""
                 + " -Dkaraf.etc=\"" + new File(new File(location).getCanonicalPath(), "etc") + "\""
-                + " -Djava.io.tmpdir=\"" + new File(new File(location).getCanonicalPath(), "data" + File.separator + "tmp") + "\""
+                + " -Dkaraf.log=\"" + new File(new File(new File(location).getCanonicalFile(), "data"), "log") + "\""
+                + " -Djava.io.tmpdir=\"" + new File(new File(new File(location).getCanonicalFile(), "data") , "tmp") + "\""
+                + " -Dkaraf.restart.jvm.supported=true"
                 + " -Dkaraf.startLocalConsole=false"
                 + " -Dkaraf.startRemoteShell=true"
                 + " -classpath \"" + classpath.toString() + "\""
@@ -592,6 +627,7 @@ public class InstanceServiceImpl implements InstanceService {
                         + " -Dkaraf.base=\"" + new File(location).getCanonicalPath() + "\""
                         + " -Dkaraf.data=\"" + new File(new File(location).getCanonicalPath(), "data") + "\""
                         + " -Dkaraf.etc=\"" + new File(new File(location).getCanonicalPath(), "etc") + "\""
+                        + " -Dkaraf.log=\"" + new File(new File(new File(location).getCanonicalFile(), "data"), "log") + "\""
                         + " -Dkaraf.instances=\"" + System.getProperty("karaf.instances") + "\""
                         + " -classpath \"" + classpath.toString() + "\""
                         + " " + Execute.class.getName()
@@ -642,7 +678,7 @@ public class InstanceServiceImpl implements InstanceService {
             Process process;
             try {
                 process = new ProcessBuilderFactoryImpl().newBuilder().attach(pid);
-                process.destroy(); 
+                process.destroy();
             } catch (IOException e) {
                 LOGGER.debug("Unable to cleanly shutdown root instance ", e);
             }
@@ -804,16 +840,17 @@ public class InstanceServiceImpl implements InstanceService {
             props.put("karaf.home", System.getProperty("karaf.home"));
             props.put("karaf.data", new File(new File(instance.loc), "data").getCanonicalPath());
             props.put("karaf.etc", new File(new File(instance.loc), "etc").getCanonicalPath());
+            props.put("karaf.log", new File(new File(new File(instance.loc), "data"), "log").getCanonicalPath());
             InterpolationHelper.performSubstitution(props, null, true, false, true);
             int port = Integer.parseInt(props.getProperty(KARAF_SHUTDOWN_PORT, "0"));
             String host = props.getProperty(KARAF_SHUTDOWN_HOST, "localhost");
             String portFile = props.getProperty(KARAF_SHUTDOWN_PORT_FILE);
             String shutdown = props.getProperty(KARAF_SHUTDOWN_COMMAND, DEFAULT_SHUTDOWN_COMMAND);
             if (port == 0 && portFile != null) {
-                BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(portFile)));
-                String portStr = r.readLine();
-                port = Integer.parseInt(portStr);
-                r.close();
+                try (BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(portFile)))) {
+                    String portStr = r.readLine();
+                    port = Integer.parseInt(portStr);
+                }
             }
             // We found the port, try to send the command
             if (port > 0) {
@@ -902,7 +939,7 @@ public class InstanceServiceImpl implements InstanceService {
             }
             File f = new File(instance.loc, path);
             FileLockUtils.execute(f, properties -> {
-                properties.put(key, port);
+                properties.put(key, String.valueOf(port));
             }, true);
             return null;
         }, true);
@@ -919,7 +956,7 @@ public class InstanceServiceImpl implements InstanceService {
         }
         File f = new File(instance.loc, path);
         try {
-            return FileLockUtils.execute(f, (TypedProperties properties) -> properties.get(key).toString(), false);
+            return FileLockUtils.execute(f, (Properties properties) -> properties.get(key).toString(), false);
         } catch (IOException e) {
             return "0.0.0.0";
         }
@@ -1034,7 +1071,7 @@ public class InstanceServiceImpl implements InstanceService {
         result &= fileToDelete.delete();
         return result;
     }
-    
+
     private void copyResourcesToDir(String[] resourcesToCopy, File target, Map<String, URL> resources, boolean printOutput) throws IOException {
         for (String resource : resourcesToCopy) {
             copyResourceToDir(resource, target, resources, printOutput);
@@ -1059,8 +1096,8 @@ public class InstanceServiceImpl implements InstanceService {
     }
 
     private InputStream getResourceStream(String resource, Map<String, URL> resources) throws IOException {
-        return resources.containsKey(resource) 
-                ? resources.remove(resource).openStream() 
+        return resources.containsKey(resource)
+                ? resources.remove(resource).openStream()
                 : getClass().getClassLoader().getResourceAsStream(RESOURCE_BASE + resource);
     }
 
@@ -1082,7 +1119,7 @@ public class InstanceServiceImpl implements InstanceService {
             return null;
         }
     }
-    
+
     /**
      * Read stream one line at a time so that we can use the platform
      * line ending when we write it out.
@@ -1118,7 +1155,7 @@ public class InstanceServiceImpl implements InstanceService {
             copyFilteredResourceToDir(resource, target, resources, props, printOutput);
         }
     }
-    
+
     private void copyFilteredResourceToDir(String resource, File target, Map<String, URL> resources, Map<String, String> props, boolean printOutput) throws IOException {
         File outFile = new File(target, resource);
         if (!outFile.exists()) {
@@ -1177,24 +1214,22 @@ public class InstanceServiceImpl implements InstanceService {
         }
     }
 
-    private int chmod(File serviceFile, String mode) throws IOException {
-        java.lang.ProcessBuilder builder = new java.lang.ProcessBuilder();
-        builder.command("chmod", mode, serviceFile.getCanonicalPath());
-        java.lang.Process p = builder.start();
-
-        // gnodet: Fix SMX4KNL-46: cpu goes to 100% after running the 'admin create' command
-        // Not sure exactly what happens, but commenting the process io redirection seems
-        // to work around the problem.
-        //
-        //PumpStreamHandler handler = new PumpStreamHandler(io.inputStream, io.outputStream, io.errorStream);
-        //handler.attach(p);
-        //handler.start();
+    private void makeFileExecutable(File serviceFile) throws IOException {
         try {
-            return p.waitFor();
-        } catch (InterruptedException e) {
-            throw (IOException) new InterruptedIOException().initCause(e);
+            Set<PosixFilePermission> permissions = new HashSet<>();
+            permissions.add(PosixFilePermission.OWNER_EXECUTE);
+            permissions.add(PosixFilePermission.GROUP_EXECUTE);
+            permissions.add(PosixFilePermission.OTHERS_EXECUTE);
+
+            // Get the existing permissions and add the executable permissions to them
+            Set<PosixFilePermission> filePermissions = Files.getPosixFilePermissions(serviceFile.toPath());
+            filePermissions.addAll(permissions);
+            Files.setPosixFilePermissions(serviceFile.toPath(), filePermissions);
         }
-        //handler.stop();
+        catch (UnsupportedOperationException ex)
+        {
+            serviceFile.setExecutable(true, false);
+        }
     }
 
     private void copy(File source, File destination) throws IOException {
@@ -1234,7 +1269,7 @@ public class InstanceServiceImpl implements InstanceService {
     }
 
     public void changeInstanceSshHost(String name, String host) throws Exception {
-        setKarafHost(name, "etc/org.apache.karaf.shell.cfg", "sshHost", host);      
+        setKarafHost(name, "etc/org.apache.karaf.shell.cfg", "sshHost", host);
     }
 
     private void setKarafHost(final String name, final String path, final String key, final String host) throws IOException {
@@ -1252,7 +1287,7 @@ public class InstanceServiceImpl implements InstanceService {
             return null;
         }, true);
     }
-    
+
     private boolean isInstancePidNeedUpdate(final String name) {
         return execute(state -> {
             InstanceState instance = state.instances.get(name);

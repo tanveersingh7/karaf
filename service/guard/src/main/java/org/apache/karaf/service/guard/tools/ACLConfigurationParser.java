@@ -86,7 +86,7 @@ public class ACLConfigurationParser {
     public static Specificity getRolesForInvocation(String methodName, Object[] params, String[] signature,
                                                     Dictionary<String, Object> config, List<String> addToRoles) {
         Dictionary<String, Object> properties = trimKeys(config);
-
+        String pid = (String)properties.get("service.pid");
         Specificity s = getRolesBasedOnSignature(methodName, params, signature, properties, addToRoles);
         if (s != Specificity.NO_MATCH) {
             return s;
@@ -101,13 +101,43 @@ public class ACLConfigurationParser {
         if (roles != null) {
             addToRoles.addAll(roles);
             return Specificity.WILDCARD_MATCH;
-        } else if (compulsoryRoles != null){
+        } else if (compulsoryRoles != null && !pid.contains("jmx.acl")){
             addToRoles.addAll(ACLConfigurationParser.parseRoles(compulsoryRoles));
             return Specificity.NAME_MATCH;
         } else {
             return Specificity.NO_MATCH;
         }
             
+    }
+    
+    public static Specificity getRolesForInvocationForAlias(String methodName, Object[] params, String[] signature,
+                                                    Dictionary<String, Object> config, List<String> addToRoles) {
+        Dictionary<String, Object> properties = trimKeys(config);
+        String pid = (String)properties.get("service.pid");
+        Specificity s = getRolesBasedOnSignature(methodName, params, signature, properties, addToRoles);
+        if (s != Specificity.NO_MATCH) {
+            return s;
+        }
+
+        s = getRolesBasedOnSignature(methodName, params, null, properties, addToRoles);
+        if (s != Specificity.NO_MATCH) {
+            return s;
+        }
+
+        List<String> roles = getMethodNameWildcardRoles(properties, methodName);
+        if (roles != null) {
+            addToRoles.addAll(roles);
+            return Specificity.WILDCARD_MATCH;
+        } else {
+            return Specificity.NO_MATCH;
+        }
+            
+    }
+    
+    public static void getCompulsoryRoles(List<String> roles) {
+        if (compulsoryRoles != null) {
+            roles.addAll(ACLConfigurationParser.parseRoles(compulsoryRoles));
+        }
     }
 
     private static Specificity getRolesBasedOnSignature(String methodName, Object[] params, String[] signature,

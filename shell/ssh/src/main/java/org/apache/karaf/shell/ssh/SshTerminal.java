@@ -21,7 +21,7 @@ package org.apache.karaf.shell.ssh;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.util.EnumSet;
 import java.util.Map;
 
@@ -40,12 +40,12 @@ public class SshTerminal extends ExternalTerminal implements Terminal {
 
     private Environment environment;
 
-    public SshTerminal(Environment environment, InputStream input, OutputStream output) throws IOException {
+    public SshTerminal(Environment environment, InputStream input, OutputStream output, String encoding) throws IOException {
         super("Karaf SSH terminal",
               environment.getEnv().get(Environment.ENV_TERM),
               input,
               output,
-              StandardCharsets.UTF_8);
+              Charset.forName(encoding));
         this.environment = environment;
         this.environment.addSignalListener(this::handleSignal);
         for (Map.Entry<PtyMode, Integer> e : environment.getPtyModes().entrySet()) {
@@ -130,12 +130,12 @@ public class SshTerminal extends ExternalTerminal implements Terminal {
                     break;
             }
         }
-        int w = Integer.valueOf(this.environment.getEnv().get(Environment.ENV_COLUMNS));
-        int h = Integer.valueOf(this.environment.getEnv().get(Environment.ENV_LINES));
+        int w = Integer.parseInt(this.environment.getEnv().get(Environment.ENV_COLUMNS));
+        int h = Integer.parseInt(this.environment.getEnv().get(Environment.ENV_LINES));
         setSize(new Size(w, h));
     }
 
-    protected void handleSignal(org.apache.sshd.server.Signal signal) {
+    protected void handleSignal(org.apache.sshd.common.channel.Channel channel, org.apache.sshd.server.Signal signal) {
         if (signal == org.apache.sshd.server.Signal.INT) {
             raise(Signal.INT);
         } else if (signal == org.apache.sshd.server.Signal.QUIT) {
@@ -145,8 +145,8 @@ public class SshTerminal extends ExternalTerminal implements Terminal {
         } else if (signal == org.apache.sshd.server.Signal.CONT) {
             raise(Signal.CONT);
         } else if (signal == org.apache.sshd.server.Signal.WINCH) {
-            int w = Integer.valueOf(this.environment.getEnv().get(Environment.ENV_COLUMNS));
-            int h = Integer.valueOf(this.environment.getEnv().get(Environment.ENV_LINES));
+            int w = Integer.parseInt(this.environment.getEnv().get(Environment.ENV_COLUMNS));
+            int h = Integer.parseInt(this.environment.getEnv().get(Environment.ENV_LINES));
             setSize(new Size(w, h));
             raise(Signal.WINCH);
         }

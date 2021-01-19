@@ -17,7 +17,7 @@
 package org.apache.felix.webconsole.internal.servlet;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.Principal;
 import java.util.Dictionary;
@@ -87,7 +87,7 @@ public class JaasSecurityProvider implements WebConsoleSecurityProvider2, Manage
             properties = new Hashtable<>();
         }
         realm = getString(properties, "realm", "karaf");
-        role = getString(properties, "role", System.getProperty("karaf.admin.role", "admin"));
+        role = getString(properties, "role", "admin");
         sessionTimeout = Integer.parseInt(getString(properties, "sessionTimeout", "0"));
     }
 
@@ -259,14 +259,7 @@ public class JaasSecurityProvider implements WebConsoleSecurityProvider2, Manage
     private static String base64Decode( String srcString )
     {
         byte[] transformed = Base64.decodeBase64(srcString);
-        try
-        {
-            return new String( transformed, "ISO-8859-1" );
-        }
-        catch ( UnsupportedEncodingException uee )
-        {
-            return new String( transformed );
-        }
+        return new String( transformed, StandardCharsets.ISO_8859_1);
     }
 
 

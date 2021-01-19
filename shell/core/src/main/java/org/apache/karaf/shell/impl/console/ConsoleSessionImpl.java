@@ -66,17 +66,10 @@ import org.apache.karaf.shell.support.completers.FileOrUriCompleter;
 import org.apache.karaf.shell.support.completers.UriCompleter;
 import org.apache.karaf.util.filesstream.FilesStream;
 import org.jline.builtins.Completers;
-import org.jline.reader.Completer;
-import org.jline.reader.EndOfFileException;
-import org.jline.reader.LineReader;
-import org.jline.reader.LineReaderBuilder;
-import org.jline.reader.MaskingCallback;
-import org.jline.reader.ParsedLine;
-import org.jline.reader.SyntaxError;
-import org.jline.reader.UserInterruptException;
+import org.jline.reader.*;
+import org.jline.terminal.Size;
 import org.jline.terminal.Terminal.Signal;
 import org.jline.terminal.impl.DumbTerminal;
-import org.osgi.service.event.EventAdmin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -153,12 +146,20 @@ public class ConsoleSessionImpl implements Session {
             }
         }
 
-        brandingProps = Branding.loadBrandingProperties(terminal);
+        if (jlineTerminal.getSize().getColumns() == 0) {
+            jlineTerminal.setSize(new Size(80, 24));
+        }
+
+        brandingProps = Branding.loadBrandingProperties(terminal.getClass().getName().endsWith("SshTerminal"));
 
         // Create session
-        session = processor.createSession(jlineTerminal.input(),
-                jlineTerminal.output(),
-                jlineTerminal.output());
+        if (in == null || out == null || err == null) {
+            session = processor.createSession(((org.jline.terminal.Terminal) terminal).input(),
+                    ((org.jline.terminal.Terminal) terminal).output(),
+                    ((org.jline.terminal.Terminal) terminal).output());
+        } else {
+            session = processor.createSession(in, out, err);
+        }
 
         // Completers
         Completer builtinCompleter = createBuiltinCompleter();
@@ -166,6 +167,7 @@ public class ConsoleSessionImpl implements Session {
         Completer completer =  (rdr, line, candidates) -> {
             builtinCompleter.complete(rdr, line, candidates);
             commandsCompleter.complete(rdr, line, candidates);
+            merge(candidates);
         };
 
         // Masking
@@ -195,7 +197,7 @@ public class ConsoleSessionImpl implements Session {
         history = new HistoryWrapper(reader.getHistory());
 
         // Registry
-        registry = new RegistryImpl(factory.getRegistry());
+        registry = new RegistryImpl(factory.getRegistry(), this);
         registry.register(factory);
         registry.register(this);
         registry.register(registry);
@@ -235,6 +237,15 @@ public class ConsoleSessionImpl implements Session {
         session.currentDir(Paths.get(System.getProperty("user.dir")).toAbsolutePath().normalize());
 
 
+    }
+
+    private void merge(List<Candidate> candidates) {
+        Map<String, Candidate> map = new HashMap<>();
+        for (Candidate c : candidates) {
+            map.merge(c.value(), c, (c1, c2) -> c1.descr() != null ? c1 : c2);
+        }
+        candidates.clear();
+        candidates.addAll(map.values());
     }
 
     private Completer createBuiltinCompleter() {
@@ -434,8 +445,10 @@ public class ConsoleSessionImpl implements Session {
             ParsedLine pl = reader.getParsedLine();
             if (pl instanceof ParsedLineImpl) {
                 command = ((ParsedLineImpl) pl).program();
-            } else {
+            } else if (pl != null) {
                 command = pl.line();
+            } else {
+                command = reader.getBuffer().toString();
             }
         } catch (EndOfFileException e) {
             command = null;
@@ -510,8 +523,9 @@ public class ConsoleSessionImpl implements Session {
             String[] scopes = ((String) get(Session.SCOPE)).split(":");
             List<Command> commands = registry.getCommands();
             for (String scope : scopes) {
+                boolean globalScope = Session.SCOPE_GLOBAL.equals(scope);
                 for (Command command : commands) {
-                    if ((Session.SCOPE_GLOBAL.equals(scope) || command.getScope().equals(scope)) && command.getName().equals(name)) {
+                    if ((globalScope || command.getScope().equals(scope)) && command.getName().equals(name)) {
                         return command.getScope() + ":" + name;
                     }
                 }
@@ -563,7 +577,9 @@ public class ConsoleSessionImpl implements Session {
             session.execute(script);
         } catch (Exception e) {
             LOGGER.debug("Error in initialization script {}", scriptFileName, e);
-            System.err.println("Error in initialization script: " + scriptFileName + ": " + e.getMessage());
+            if (!(e instanceof InterruptedException)) {
+                System.err.println("Error in initialization script: " + scriptFileName + ": " + e.getMessage());
+            }
         } finally {
             session.put("script", oldScript);
         }

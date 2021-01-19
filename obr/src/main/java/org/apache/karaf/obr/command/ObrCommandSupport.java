@@ -72,7 +72,7 @@ public abstract class ObrCommandSupport implements Action {
 
         // The targetId may be a bundle name or a bundle symbolic name,
         // so create the appropriate LDAP query.
-        StringBuffer sb = new StringBuffer("(|(presentationname=");
+        StringBuilder sb = new StringBuilder("(|(presentationname=");
         sb.append(targetId);
         sb.append(")(symbolicname=");
         sb.append(targetId);
@@ -119,7 +119,7 @@ public abstract class ObrCommandSupport implements Action {
         for (int i = 0; i < length; i++) {
             out.print('-');
         }
-        out.println("");
+        out.println();
     }
 
     protected void doDeploy(RepositoryAdmin admin, List<String> bundles, boolean start, boolean deployOptional) throws Exception {

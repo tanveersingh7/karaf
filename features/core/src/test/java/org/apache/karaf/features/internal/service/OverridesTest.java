@@ -18,13 +18,14 @@ package org.apache.karaf.features.internal.service;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 import org.apache.felix.utils.manifest.Clause;
 import org.apache.felix.utils.manifest.Parser;
-import org.apache.karaf.features.internal.resolver.ResourceBuilder;
+import org.apache.felix.utils.resource.ResourceBuilder;
 import org.junit.Before;
 import org.junit.Test;
 import org.osgi.framework.BundleException;
@@ -122,7 +123,7 @@ public class OverridesTest {
     public void testNotMatching() throws IOException {
         Map<String, Resource> map = asResourceMap(b100, b110);
         assertEquals(b100, map.get(getUri(b100)));
-        Overrides.override(map, Arrays.asList(getUri(b110)));
+        Overrides.override(map, Collections.singletonList(getUri(b110)));
         assertEquals(b100, map.get(getUri(b100)));
     }
 
@@ -134,10 +135,10 @@ public class OverridesTest {
         Clause karafAdminCommand = null;
         Clause karafAdminCore = null;
         for (Clause clause : Parser.parseClauses(overrides.toArray(new String[overrides.size()]))) {
-            if (clause.getName().equals("mvn:org.apache.karaf.admin/org.apache.karaf.admin.command/2.3.0.redhat-61033X")) {
+            if (clause.getName().equals("mvn:org.apache.karaf.admin/org.apache.karaf.admin.command/2.3.0.61033X")) {
                 karafAdminCommand = clause;
             }
-            if (clause.getName().equals("mvn:org.apache.karaf.admin/org.apache.karaf.admin.core/2.3.0.redhat-61033X")) {
+            if (clause.getName().equals("mvn:org.apache.karaf.admin/org.apache.karaf.admin.core/2.3.0.61033X")) {
                 karafAdminCore = clause;
             }
         }

@@ -90,7 +90,7 @@ public class List extends BundlesCommand {
 
         ShellTable table = new ShellTable();
         if (!noEllipsis && terminal != null && terminal.getWidth() > 0) {
-            table.size(terminal.getWidth());
+            table.size(terminal.getWidth() - 1);
         }
         table.column("ID").alignRight();
         table.column("State");
@@ -185,7 +185,10 @@ public class List extends BundlesCommand {
         builder.append(", Hosts: ");
         boolean first = true;
         for (Bundle host : info.getFragmentHosts()) {
-            builder.append((first ? "" : ", ") + host.getBundleId());
+            if (!first) {
+                builder.append(", ");
+            }
+            builder.append(host.getBundleId());
             first = false;
         }
         return builder.toString();
@@ -199,7 +202,10 @@ public class List extends BundlesCommand {
         builder.append(", Fragments: ");
         boolean first = true;
         for (Bundle host : info.getFragments()) {
-            builder.append((first ? "" : ", ") + host.getBundleId());
+            if (!first) {
+                builder.append(", ");
+            }
+            builder.append(host.getBundleId());
             first = false;
         }
         return builder.toString();

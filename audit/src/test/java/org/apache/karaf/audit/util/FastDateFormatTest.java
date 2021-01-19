@@ -19,6 +19,8 @@ package org.apache.karaf.audit.util;
 import org.junit.Test;
 
 import java.text.SimpleDateFormat;
+import java.util.Locale;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
@@ -33,10 +35,15 @@ public class FastDateFormatTest {
         assertEquals("Nov  5", cal.getDate(time, FastDateFormat.MMM_D2));
         assertEquals("2017-11-05", cal.getDate(time, FastDateFormat.YYYY_MM_DD));
 
-        time += TimeUnit.DAYS.toMillis(5);
+        time += TimeUnit.DAYS.toMillis(5) + TimeUnit.HOURS.toMillis(1);
         assertEquals("Nov 10", cal.getDate(time, FastDateFormat.MMM_D2));
         assertEquals("2017-11-10", cal.getDate(time, FastDateFormat.YYYY_MM_DD));
+    }
 
-
+    @Test
+    public void testTimeZone() throws Exception {
+        long time = new SimpleDateFormat("yyyy-MM-dd").parse("2017-11-05").getTime();
+        FastDateFormat cal = new FastDateFormat(TimeZone.getTimeZone("GMT+5"), Locale.ENGLISH);
+        assertEquals("+05:00", cal.getDate(time, FastDateFormat.XXX));
     }
 }

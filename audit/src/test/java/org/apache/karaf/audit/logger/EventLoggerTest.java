@@ -35,6 +35,8 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -151,7 +153,7 @@ public class EventLoggerTest {
         EventLayout layout = new GelfLayout();
         Path path = Files.createTempDirectory("file-logger");
         String file = path.resolve("file.log").toString();
-        EventLogger logger = new FileEventLogger(file, "UTF-8", "daily", 2, false, Executors.defaultThreadFactory(), layout);
+        EventLogger logger = new FileEventLogger(file, "UTF-8", "daily", 2, false, Executors.defaultThreadFactory(), layout, TimeZone.getTimeZone("GMT+01:00"));
 
         logger.write(new MapEvent(map, 1510902000000L));
         logger.write(new MapEvent(map, 1510984800000L));
@@ -190,7 +192,7 @@ public class EventLoggerTest {
         EventLayout layout = new GelfLayout();
         Path path = Files.createTempDirectory("file-logger");
         String file = path.resolve("file.log").toString();
-        EventLogger logger = new FileEventLogger(file, "UTF-8", "daily", 2, false, Executors.defaultThreadFactory(), layout);
+        EventLogger logger = new FileEventLogger(file, "UTF-8", "daily", 2, false, Executors.defaultThreadFactory(), layout, TimeZone.getTimeZone("GMT+01:00"));
 
         for (int i = 0; i < 10; i++) {
             logger.write(new MapEvent(map, 1510902000000L + TimeUnit.DAYS.toMillis(i)));
@@ -215,10 +217,10 @@ public class EventLoggerTest {
         EventLayout layout = new GelfLayout();
         Path path = Files.createTempDirectory("file-logger");
         String file = path.resolve("file.log").toString();
-        EventLogger logger = new FileEventLogger(file, "UTF-8", "size(10)", 2, false, Executors.defaultThreadFactory(), layout);
-
+        EventLogger logger = new FileEventLogger(file, "UTF-8", "size(10)", 2, false, Executors.defaultThreadFactory(), layout, TimeZone.getTimeZone("GMT+01:00"));
         for (int i = 0; i < 10; i++) {
-            logger.write(new MapEvent(map, 1510902000000L + TimeUnit.HOURS.toMillis(i)));
+            logger.write(new MapEvent(map, LocalDateTime.of(2017, 11, 17, 7, 0).toInstant(ZoneOffset.of("+01:00")).toEpochMilli()
+                                           + TimeUnit.HOURS.toMillis(i)));
         }
         logger.close();
 
@@ -240,10 +242,11 @@ public class EventLoggerTest {
         EventLayout layout = new GelfLayout();
         Path path = Files.createTempDirectory("file-logger");
         String file = path.resolve("file.log").toString();
-        EventLogger logger = new FileEventLogger(file, "UTF-8", "size(10)", 2, true, Executors.defaultThreadFactory(), layout);
+        EventLogger logger = new FileEventLogger(file, "UTF-8", "size(10)", 2, true, Executors.defaultThreadFactory(), layout, TimeZone.getTimeZone("GMT+01:00"));
 
         for (int i = 0; i < 10; i++) {
-            logger.write(new MapEvent(map, 1510902000000L + TimeUnit.HOURS.toMillis(i)));
+            logger.write(new MapEvent(map, LocalDateTime.of(2017, 11, 17, 7, 0).toInstant(ZoneOffset.of("+01:00")).toEpochMilli()
+                                           + TimeUnit.HOURS.toMillis(i)));
         }
         logger.close();
 

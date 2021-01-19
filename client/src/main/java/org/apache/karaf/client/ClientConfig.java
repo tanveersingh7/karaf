@@ -71,99 +71,114 @@ public class ClientConfig {
         
         for (int i = 0; i < args.length; i++) {
             if (!endOfOptionsMarkerReached && args[i].charAt(0) == '-') {
-                if (args[i].equals("-a")) {
-                    if (args.length <= ++i) {
-                        System.err.println("miss the port");
-                        System.exit(1);
-                    } else {
-                        port = Integer.parseInt(args[i]);
-                    }
-                } else if (args[i].equals("-h")) {
-                    if (args.length <= ++i) {
-                        System.err.println("miss the host");
-                        System.exit(1);
-                    } else {
-                        host = args[i];
-                    }
-                } else if (args[i].equals("-u")) {
-                    if (args.length <= ++i) {
-                        System.err.println("miss the user");
-                        System.exit(1);
-                    } else {
-                        user = args[i];
-                        interactiveMode = true;
-                        password = null;//get chance to input the password with interactive way
-                    }
-                } else if (args[i].equals("-v")) {
-                    level++;
-                } else if (args[i].equals("-l")) {
-                    if (args.length <= ++i) {
-                        System.err.println("miss the log level");
-                        System.exit(1);
-                    } else {
-                        int levelValue = Integer.parseInt(args[i]);
-                        if (levelValue < 0 || levelValue > 4) {
-                            System.err.println("log level can only be 0, 1, 2, 3, or 4");
+                switch (args[i]) {
+                    case "-a":
+                        if (args.length <= ++i) {
+                            System.err.println("miss the port");
                             System.exit(1);
                         } else {
-                            level = levelValue;
+                            port = Integer.parseInt(args[i]);
                         }
-                    }
-                } else if (args[i].equals("-r")) {
-                    if (args.length <= ++i) {
-                        System.err.println("miss the attempts");
+                        break;
+                    case "-h":
+                        if (args.length <= ++i) {
+                            System.err.println("miss the host");
+                            System.exit(1);
+                        } else {
+                            host = args[i];
+                        }
+                        break;
+                    case "-u":
+                        if (args.length <= ++i) {
+                            System.err.println("miss the user");
+                            System.exit(1);
+                        } else {
+                            user = args[i];
+                            interactiveMode = true;
+                            password = null;//get chance to input the password with interactive way
+                        }
+                        break;
+                    case "-v":
+                        level++;
+                        break;
+                    case "-l":
+                        if (args.length <= ++i) {
+                            System.err.println("miss the log level");
+                            System.exit(1);
+                        } else {
+                            int levelValue = Integer.parseInt(args[i]);
+                            if (levelValue < 0 || levelValue > 4) {
+                                System.err.println("log level can only be 0, 1, 2, 3, or 4");
+                                System.exit(1);
+                            } else {
+                                level = levelValue;
+                            }
+                        }
+                        break;
+                    case "-r":
+                        if (args.length <= ++i) {
+                            System.err.println("miss the attempts");
+                            System.exit(1);
+                        } else {
+                            retryAttempts = Integer.parseInt(args[i]);
+                        }
+
+                        break;
+                    case "-p":
+                        if (args.length <= ++i) {
+                            System.err.println("miss the password");
+                            System.exit(1);
+                        } else {
+                            password = args[i];
+                            interactiveMode = false;
+                            inputPassword = true;
+                        }
+                        break;
+                    case "-d":
+                        if (args.length <= ++i) {
+                            System.err.println("miss the delay in seconds");
+                            System.exit(1);
+                        } else {
+                            retryDelay = Integer.parseInt(args[i]);
+                        }
+                        break;
+                    case "-b":
+                        batch = true;
+                        break;
+                    case "-f":
+                        if (args.length <= ++i) {
+                            System.err.println("miss the commands file");
+                            System.exit(1);
+                        } else {
+                            file = args[i];
+                        }
+                        break;
+                    case "-k":
+                        if (args.length <= ++i) {
+                            System.err.println("miss the key file");
+                            System.exit(1);
+                        } else {
+                            keyFile = args[i];
+                        }
+                        break;
+                    case "-t":
+                        if (args.length <= ++i) {
+                            System.err.println("miss the idle timeout");
+                            System.exit(1);
+                        } else {
+                            idleTimeout = Long.parseLong(args[i]);
+                        }
+                        break;
+                    case "--help":
+                        showHelp();
+                        break;
+                    case "--":
+                        endOfOptionsMarkerReached = true;
+                        break;
+                    default:
+                        System.err.println("Unknown option: " + args[i]);
+                        System.err.println("Run with --help for usage");
                         System.exit(1);
-                    } else {
-                        retryAttempts = Integer.parseInt(args[i]);
-                    }
-                    
-                } else if (args[i].equals("-p")) {
-                    if (args.length <= ++i) {
-                        System.err.println("miss the password");
-                        System.exit(1);
-                    } else {
-                        password = args[i];
-                        interactiveMode = false;
-                        inputPassword = true;
-                    }
-                } else if (args[i].equals("-d")) {
-                    if (args.length <= ++i) {
-                        System.err.println("miss the delay in seconds");
-                        System.exit(1);
-                    } else {
-                        retryDelay = Integer.parseInt(args[i]);
-                    }
-                } else if (args[i].equals("-b")) {
-                    batch = true;
-                } else if (args[i].equals("-f")) {
-                    if (args.length <= ++i) {
-                        System.err.println("miss the commands file");
-                        System.exit(1);
-                    } else {
-                        file = args[i];
-                    }
-                } else if (args[i].equals("-k")) {
-                    if (args.length <= ++i) {
-                        System.err.println("miss the key file");
-                        System.exit(1);
-                    } else {
-                        keyFile = args[i];
-                    }
-                } else if (args[i].equals("-t")) {
-                    if (args.length <= ++i) {
-                        System.err.println("miss the idle timeout");
-                        System.exit(1);
-                    } else {
-                        idleTimeout = Long.parseLong(args[i]);
-                    }
-                } else if (args[i].equals("--help")) {
-                    showHelp();
-                } else if (args[i].equals("--")) {
-                    endOfOptionsMarkerReached = true;
-                } else {
-                    System.err.println("Unknown option: " + args[i]);
-                    System.err.println("Run with --help for usage");
-                    System.exit(1);
                 }
             } else {
                 commandBuilder.append(args[i]);
@@ -213,7 +228,7 @@ public class ClientConfig {
         System.out.println("  -b            batch mode, specify multiple commands via standard input");
         System.out.println("  -f [file]     read commands from the specified file");
         System.out.println("  -k [keyFile]  specify the private keyFile location when using key login, need have BouncyCastle registered as security provider using this flag");
-        System.out.println("  -t [timeout]  define the client idle timeout");
+        System.out.println("  -t [timeout]  define the client idle timeout (in milliseconds)");
         System.out.println("  [commands] [--]   commands to run");
         System.out.println("If no commands are specified, the client will be put in an interactive mode");
         System.exit(0);
@@ -235,7 +250,12 @@ public class ClientConfig {
             if (val instanceof Number) {
                 return ((Number) val).intValue();
             } else if (val != null) {
-                return Integer.parseInt(val.toString());
+                try {
+                    return Integer.parseInt(val.toString());
+                } catch (Exception e) {
+                    System.err.println("Invalid value for " + key + ", using default " + def);
+                    return def;
+                }
             }
         }
         return def;
@@ -247,7 +267,12 @@ public class ClientConfig {
             if (val instanceof Number) {
                 return ((Number) val).longValue();
             } else if (val != null) {
-                return Long.parseLong(val.toString());
+                try {
+                    return Long.parseLong(val.toString());
+                } catch (Exception e) {
+                    System.err.println("Invalid value for " + key + ", using default " + def);
+                    return def;
+                }
             }
         }
         return def;

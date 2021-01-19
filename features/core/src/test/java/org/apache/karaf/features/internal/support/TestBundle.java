@@ -21,15 +21,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.security.cert.X509Certificate;
-import java.util.Dictionary;
-import java.util.Enumeration;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+import org.apache.felix.utils.resource.ResourceBuilder;
+import org.apache.felix.utils.resource.ResourceImpl;
 import org.apache.karaf.features.internal.resolver.ResolverUtil;
-import org.apache.karaf.features.internal.resolver.ResourceBuilder;
-import org.apache.karaf.features.internal.resolver.ResourceImpl;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
@@ -238,6 +234,11 @@ public class TestBundle extends ResourceImpl implements BundleRevision, Bundle, 
         long thisBundleId = this.getBundleId();
         long thatBundleId = o.getBundleId();
         return (thisBundleId < thatBundleId ? -1 : (thisBundleId == thatBundleId ? 0 : 1));
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(location);
     }
 
     @Override

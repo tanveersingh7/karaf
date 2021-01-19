@@ -14,6 +14,7 @@
  */
 package org.apache.karaf.jaas.modules.audit;
 
+import org.apache.karaf.jaas.modules.JAASUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,8 +33,8 @@ public class LogAuditLoginModule extends AbstractAuditLoginModule {
     public void initialize(Subject subject, CallbackHandler callbackHandler,
                            Map<String, ?> sharedState, Map<String, ?> options) {
         super.initialize(subject, callbackHandler, sharedState, options);
-        level = (String) options.get(LOG_LEVEL_OPTION);
-        logger = LoggerFactory.getLogger((String) options.get(LOG_LOGGER_OPTION));
+        level = JAASUtils.getString(options, LOG_LEVEL_OPTION);
+        logger = LoggerFactory.getLogger(JAASUtils.getString(options, LOG_LOGGER_OPTION));
     }
 
     protected synchronized void audit(Action action, String username) {
@@ -46,15 +47,15 @@ public class LogAuditLoginModule extends AbstractAuditLoginModule {
             default: actionStr = action.toString(); break;
         }
         if (level.equalsIgnoreCase("debug")) {
-            logger.debug("{} - {}", actionStr, username);
+            logger.debug("{} - {} - {}", actionStr, username, getPrincipalInfo());
         } else if (level.equalsIgnoreCase("trace")) {
-            logger.trace("{} - {}", actionStr, username);
+            logger.trace("{} - {} - {}", actionStr, username, getPrincipalInfo());
         } else if (level.equalsIgnoreCase("warn")) {
-            logger.warn("{} - {}", actionStr, username);
+            logger.warn("{} - {} - {}", actionStr, username, getPrincipalInfo());
         } else if (level.equalsIgnoreCase("error")) {
-            logger.error("{} - {}", actionStr, username);
+            logger.error("{} - {} - {}", actionStr, username, getPrincipalInfo());
         } else {
-            logger.info("{} - {}", actionStr, username);
+            logger.info("{} - {} - {}", actionStr, username, getPrincipalInfo());
         }
     }
 

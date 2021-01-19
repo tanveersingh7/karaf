@@ -16,6 +16,7 @@ package org.apache.karaf.jaas.modules.encryption;
 
 import org.apache.karaf.jaas.modules.Encryption;
 import org.apache.karaf.jaas.modules.EncryptionService;
+import org.apache.karaf.jaas.modules.JAASUtils;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
 import org.osgi.framework.InvalidSyntaxException;
@@ -40,7 +41,7 @@ public class EncryptionSupport {
     private String name;
 
     private Map<String, String> encOpts;
-    
+
     public static EncryptionSupport noEncryptionSupport() {
         Map<String, Object> options = new HashMap<>();
         options.put("enabled", "false");
@@ -48,7 +49,7 @@ public class EncryptionSupport {
     }
 
     public EncryptionSupport(Map<String, ?> options) {
-        this.debug = Boolean.parseBoolean((String) options.get("debug"));
+        this.debug = Boolean.parseBoolean(JAASUtils.getString(options, "debug"));
         // the bundle context is set in the Config JaasRealm by default
         this.bundleContext = (BundleContext) options.get(BundleContext.class.getName());
         encOpts = new HashMap<>();
@@ -68,7 +69,7 @@ public class EncryptionSupport {
             logOptions();
         }
     }
-    
+
     public String encrypt(String plain) {
         getEncryption();
         if (encryption == null || isEncrypted(plain)) {
@@ -77,7 +78,17 @@ public class EncryptionSupport {
             return encryptionPrefix + encryption.encryptPassword(plain) + encryptionSuffix;
         }
     }
-    
+
+    public boolean checkPassword(String provided, String real) {
+        getEncryption();
+        if (encryption == null) {
+            return provided != null && provided.equals(real);
+        } else {
+            String encryptedPassword = real.substring(encryptionPrefix.length(), real.length() - encryptionSuffix.length());
+            return encryption.checkPassword(provided, encryptedPassword);
+        }
+    }
+
     private void logOptions() {
         if (name != null && name.length() > 0) {
             logger.debug("Encryption is enabled. Using service " + name + " with options " + encOpts);
@@ -85,11 +96,11 @@ public class EncryptionSupport {
             logger.debug("Encryption is enabled. Using options " + encOpts);
         }
     }
-    
+
     private String defaulIfNull(String value, String defaultValue) {
         return value == null ? defaultValue : value;
     }
-    
+
     private boolean isEncrypted(String password) {
         boolean prefixPresent = "".equals(encryptionPrefix) || password.startsWith(encryptionPrefix);
         boolean suffixPresent = "".equals(encryptionSuffix) || password.endsWith(encryptionSuffix);
@@ -150,7 +161,7 @@ public class EncryptionSupport {
     private org.osgi.framework.Filter getFilter() {
         String nameFilter = name != null && name.length() > 0 ? "(name=" + name + ")" : null;
         String objFilter = "(objectClass=" + EncryptionService.class.getName() + ")";
-        String filter = nameFilter == null ? objFilter : "(&" + nameFilter + objFilter + ")"; 
+        String filter = nameFilter == null ? objFilter : "(&" + nameFilter + objFilter + ")";
         try {
             return FrameworkUtil.createFilter(filter);
         } catch (InvalidSyntaxException e) {
@@ -177,7 +188,7 @@ public class EncryptionSupport {
     public void setEncryptionPrefix(String encryptionPrefix) {
         this.encryptionPrefix = encryptionPrefix;
     }
-    
+
     /**
      * For tests
      */

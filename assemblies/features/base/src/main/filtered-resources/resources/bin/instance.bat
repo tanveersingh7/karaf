@@ -25,7 +25,9 @@ set PROGNAME=%~nx0%
 set ARGS=%*
 
 rem Sourcing environment settings for karaf similar to tomcats setenv
-SET KARAF_SCRIPT="instance.bat"
+if "%KARAF_SCRIPT%" == "" (
+	SET KARAF_SCRIPT="instance.bat"
+)
 if exist "%DIRNAME%setenv.bat" (
   call "%DIRNAME%setenv.bat"
 )
@@ -77,7 +79,8 @@ if "%KARAF_BASE%" == "" (
 if not "%KARAF_DATA%" == "" (
     if not exist "%KARAF_DATA%" (
         call :warn KARAF_DATA is not valid: "%KARAF_DATA%"
-        goto END
+        call :warn Creating %KARAF_DATA%
+        mkdir %KARAF_DATA%
     )
 )
 if "%KARAF_DATA%" == "" (
@@ -92,6 +95,16 @@ if not "%KARAF_ETC%" == "" (
 )
 if "%KARAF_ETC%" == "" (
     set "KARAF_ETC=%KARAF_BASE%\etc"
+)
+
+if not "%KARAF_LOG%" == "" (
+    if not exist "%KARAF_LOG%" (
+        call :warn KARAF_LOG is not valid: "%KARAF_LOG%"
+        goto END
+    )
+)
+if "%KARAF_LOG%" == "" (
+    set "KARAF_LOG=%KARAF_DATA%\log"
 )
 
 set DEFAULT_JAVA_OPTS=
@@ -143,12 +156,13 @@ set CLASSPATH=%KARAF_HOME%\system\org\apache\karaf\instance\org.apache.karaf.ins
 set CLASSPATH=%CLASSPATH%;%KARAF_HOME%\system\org\apache\karaf\shell\org.apache.karaf.shell.core\@@project.version@@\org.apache.karaf.shell.core-@@project.version@@.jar
 set CLASSPATH=%CLASSPATH%;%KARAF_HOME%\system\org\ops4j\pax\logging\pax-logging-api\@@pax.logging.version@@\pax-logging-api-@@pax.logging.version@@.jar
 set CLASSPATH=%CLASSPATH%;%KARAF_HOME%\system\org\jline\jline\@@jline.version@@\jline-@@jline.version@@.jar
+set CLASSPATH=%CLASSPATH%;%KARAF_HOME%\lib\boot\osgi.core-@@osgi.version@@.jar
 
 :EXECUTE
     if "%SHIFT%" == "true" SET ARGS=%2 %3 %4 %5 %6 %7 %8
     if not "%SHIFT%" == "true" SET ARGS=%1 %2 %3 %4 %5 %6 %7 %8    
     rem Execute the Java Virtual Machine
-    "%JAVA%" %JAVA_OPTS% %OPTS% -classpath "%CLASSPATH%" -Dkaraf.instances="%KARAF_HOME%\instances" -Dkaraf.home="%KARAF_HOME%" -Dkaraf.base="%KARAF_BASE%" -Dkaraf.etc="%KARAF_ETC%" -Djava.io.tmpdir="%KARAF_DATA%\tmp" -Djava.util.logging.config.file="%KARAF_BASE%\etc\java.util.logging.properties" %KARAF_OPTS% org.apache.karaf.instance.main.Execute %ARGS%
+    "%JAVA%" %JAVA_OPTS% %OPTS% -classpath "%CLASSPATH%" -Dkaraf.instances="%KARAF_HOME%\instances" -Dkaraf.home="%KARAF_HOME%" -Dkaraf.base="%KARAF_BASE%" -Dkaraf.etc="%KARAF_ETC%" -Dkaraf.log="%KARAF_LOG%" -Djava.io.tmpdir="%KARAF_DATA%\tmp" -Djava.util.logging.config.file="%KARAF_BASE%\etc\java.util.logging.properties" %KARAF_OPTS% org.apache.karaf.instance.main.Execute %ARGS%
 
 rem # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 

@@ -19,6 +19,7 @@ package org.apache.karaf.jaas.modules.properties;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HashSet;
 import java.util.Map;
@@ -37,6 +38,7 @@ import org.apache.karaf.jaas.boot.principal.GroupPrincipal;
 import org.apache.karaf.jaas.boot.principal.RolePrincipal;
 import org.apache.karaf.jaas.boot.principal.UserPrincipal;
 import org.apache.karaf.jaas.modules.AbstractKarafLoginModule;
+import org.apache.karaf.jaas.modules.JAASUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,42 +54,42 @@ public class  DigestPasswordLoginModule extends AbstractKarafLoginModule {
     private MessageDigest digest;
 
     private String usersFile;
-    
+
 
     public void initialize(Subject sub, CallbackHandler handler, Map<String, ?> sharedState, Map<String, ?> options) {
         super.initialize(sub,handler,options);
-        usersFile = (String) options.get(USER_FILE);
+        usersFile = JAASUtils.getString(options, USER_FILE);
         if (debug) {
             LOGGER.debug("Initialized debug={} usersFile={}", debug, usersFile);
         }
     }
-    
+
     public String doPasswordDigest(String nonce, String created, String password) {
         String passwdDigest = null;
         try {
-            passwdDigest = doPasswordDigest(nonce, created, password.getBytes("UTF-8"));
+            passwdDigest = doPasswordDigest(nonce, created, password.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
                 LOGGER.debug(e.getMessage(), e);
         }
         return passwdDigest;
     }
-    
+
     public String doPasswordDigest(String nonce, String created, byte[] password) {
         String passwdDigest = null;
         try {
             byte[] b1 = nonce != null ? new Base64().decode(nonce) : new byte[0];
-            byte[] b2 = created != null ? created.getBytes("UTF-8") : new byte[0];
+            byte[] b2 = created != null ? created.getBytes(StandardCharsets.UTF_8) : new byte[0];
             byte[] b3 = password;
             byte[] b4 = new byte[b1.length + b2.length + b3.length];
             int offset = 0;
             System.arraycopy(b1, 0, b4, offset, b1.length);
             offset += b1.length;
-            
+
             System.arraycopy(b2, 0, b4, offset, b2.length);
             offset += b2.length;
 
             System.arraycopy(b3, 0, b4, offset, b3.length);
-            
+
             byte[] digestBytes = generateDigest(b4);
             passwdDigest = new String(Base64.encodeBase64(digestBytes));
         } catch (Exception e) {
@@ -95,13 +97,12 @@ public class  DigestPasswordLoginModule extends AbstractKarafLoginModule {
         }
         return passwdDigest;
     }
-    
+
     /**
      * Generate a (SHA1) digest of the input bytes. The MessageDigest instance that backs this
-     * method is cached for efficiency.  
+     * method is cached for efficiency.
      * @param inputBytes the bytes to digest
      * @return the digest of the input bytes
-     * @throws WSSecurityException
      */
     public synchronized byte[] generateDigest(byte[] inputBytes) {
         try {
@@ -173,7 +174,7 @@ public class  DigestPasswordLoginModule extends AbstractKarafLoginModule {
         		throw new FailedLoginException("User " + user + " does not exist");
         	}
         }
-        
+
         // the password is in the first position
         String[] infos = userInfos.split(",");
         String storedPassword = infos[0];
@@ -181,7 +182,7 @@ public class  DigestPasswordLoginModule extends AbstractKarafLoginModule {
         CallbackHandler myCallbackHandler = null;
 
         try {
-            Field field = callbackHandler.getClass().getDeclaredField("ch"); 
+            Field field = callbackHandler.getClass().getDeclaredField("ch");
             field.setAccessible(true);
             myCallbackHandler = (CallbackHandler) field.get(callbackHandler);
         } catch (Exception e) {
@@ -190,11 +191,11 @@ public class  DigestPasswordLoginModule extends AbstractKarafLoginModule {
 
         if (myCallbackHandler instanceof NameDigestPasswordCallbackHandler) {
             NameDigestPasswordCallbackHandler digestCallbackHandler = (NameDigestPasswordCallbackHandler)myCallbackHandler;
-            storedPassword = doPasswordDigest(digestCallbackHandler.getNonce(), 
-                                                            digestCallbackHandler.getCreatedTime(), 
+            storedPassword = doPasswordDigest(digestCallbackHandler.getNonce(),
+                                                            digestCallbackHandler.getCreatedTime(),
                                                             storedPassword);
         }
-        
+
         // check the provided password
         if (!checkPassword(password, storedPassword)) {
         	if (!this.detailedLoginExcepion) {
@@ -228,23 +229,7 @@ public class  DigestPasswordLoginModule extends AbstractKarafLoginModule {
         if (debug) {
             LOGGER.debug("Successfully logged in {}", user);
         }
-        return true;
-    }
-
-    public boolean abort() throws LoginException {
-        clear();
-        if (debug) {
-            LOGGER.debug("abort");
-        }
-        return true;
-    }
-
-    public boolean logout() throws LoginException {
-        subject.getPrincipals().removeAll(principals);
-        principals.clear();
-        if (debug) {
-            LOGGER.debug("logout");
-        }
+        succeeded = true;
         return true;
     }
 

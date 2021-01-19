@@ -24,7 +24,7 @@
     <parent>
         <groupId>org.apache.karaf</groupId>
         <artifactId>karaf</artifactId>
-        <version>4.2.0-SNAPSHOT</version>
+        <version>4.3.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -38,17 +38,29 @@
         <appendedResourcesDirectory>${project.basedir}/../../etc/appended-resources</appendedResourcesDirectory>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.karaf</groupId>
+                <artifactId>karaf-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
 
         <dependency>
             <groupId>org.osgi</groupId>
-            <artifactId>org.osgi.core</artifactId>
+            <artifactId>osgi.core</artifactId>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.osgi</groupId>
-            <artifactId>org.osgi.compendium</artifactId>
+            <artifactId>osgi.cmpn</artifactId>
             <scope>provided</scope>
         </dependency>
 
@@ -112,6 +124,37 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>regex-property</id>
+                        <goals>
+                            <goal>regex-property</goal>
+                        </goals>
+                        <configuration>
+                            <name>karaf.osgi.version</name>
+                            <value>${project.version}</value>
+                            <regex>\.*</regex>
+                            <replacement />
+                            <failIfNoMatch>false</failIfNoMatch>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
                 <executions>
                     <execution>
@@ -122,6 +165,11 @@
                         </goals>
                         <configuration>
                             <outputDirectory>${project.build.directory}/generated-resources/org/apache/karaf/instance</outputDirectory>
+                            <addDefaultExcludes>false</addDefaultExcludes>
+                            <useDefaultDelimiters>false</useDefaultDelimiters>
+                            <delimiters>
+                              <delimiter>@@</delimiter>
+                            </delimiters>
                             <resources>
                                 <resource>
                                     <directory>${project.basedir}/../assemblies/features/base/src/main/resources</directory>
@@ -133,6 +181,7 @@
                                     <directory>${project.basedir}/../assemblies/features/base/src/main/filtered-resources</directory>
                                     <filtering>true</filtering>
                                     <excludes>
+                                        <exclude>**/etc/config.properties</exclude>
                                         <exclude>**/bin/karaf</exclude>
                                         <exclude>**/bin/karaf.bat</exclude>
                                         <exclude>**/bin/start</exclude>
@@ -141,27 +190,15 @@
                                         <exclude>**/bin/stop.bat</exclude>
                                     </excludes>
                                 </resource>
+                                <resource>
+                                    <directory>${project.basedir}/src/main/resources/org/apache/karaf/instance</directory>
+                                    <includes>
+                                        <include>**/*</include>
+                                    </includes>
+                                    <filtering>true</filtering>
+                                </resource>
                             </resources>
                         </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <configuration>
-                    <useDefaultDelimiters>false</useDefaultDelimiters>
-                    <delimiters>
-                        <delimiter>@@</delimiter>
-                    </delimiters>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>filter</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>resources</goal>
-                        </goals>
                     </execution>
                 </executions>
             </plugin>
@@ -183,11 +220,14 @@
                         <Import-Package>
                             !org.apache.karaf.shell.impl.action.command,
                             !org.apache.karaf.instance.core.internal,
+                            org.osgi.framework;version="[1,3)",
                             *
                         </Import-Package>
                         <Private-Package>
                             org.apache.karaf.jpm,
                             org.apache.karaf.jpm.impl,
+                            org.apache.karaf.jpm.impl.unix,
+                            org.apache.karaf.jpm.impl.windows,
                             org.apache.karaf.instance.main,
                             org.apache.karaf.instance.command,
                             org.apache.karaf.instance.command.completers,

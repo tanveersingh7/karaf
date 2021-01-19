@@ -97,7 +97,7 @@ public class SshAction implements Action {
             if (username == null) {
                 username = hostname.substring(0, hostname.indexOf('@'));
             }
-            hostname = hostname.substring(hostname.indexOf('@') + 1, hostname.length());
+            hostname = hostname.substring(hostname.indexOf('@') + 1);
         }
 
         System.out.println("Connecting to host " + hostname + " on port " + port);
@@ -123,7 +123,7 @@ public class SshAction implements Action {
         KnownHostsManager knownHostsManager = new KnownHostsManager(new File(System.getProperty("user.home"), ".sshkaraf/known_hosts"));
         ServerKeyVerifier serverKeyVerifier = new ServerKeyVerifierImpl(knownHostsManager, quiet);
         client.setServerKeyVerifier(serverKeyVerifier);
-        client.setKeyPairProvider(new FileKeyPairProvider());
+        client.setKeyIdentityProvider(new FileKeyPairProvider());
         log.debug("Created client: {}", client);
         client.setUserInteraction(new UserInteraction() {
             @Override

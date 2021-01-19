@@ -19,11 +19,10 @@ The Apache Karaf DataSources (JDBC) is an optional enterprise feature.
 You have to install the following features first:
 
 ----
-karaf@root()> feature:repo-add pax-jdbc
-karaf@root()> feature:install pax-jdbc
-karaf@root()> feature:install pax-jdbc-config
 karaf@root()> feature:install jdbc
 ----
+
+NB: `jdbc` feature automatically installs the `pax-jdbc-*` core features.
 
 Pax JDBC provides ready to use adapters for different databases:
 
@@ -43,6 +42,44 @@ This JDBC OSGi service can be manipulated programmatically (see the developer gu
 
 ===== Commands
 
+====== `jdbc:ds-factories`
+
+The `jdbc:ds-factories` command lists the available datasource factories, with the available driver.
+
+For instance, once you installed the `jdbc` feature,  you can install `pax-jdbc-postgresql` feature, providing the PostgreSQL datasource factory:
+
+----
+karaf@root()> feature:install pax-jdbc-postgresql
+----
+
+Then, you can see the factory available with `jdbc:ds-factories`:
+
+----
+karaf@root()> jdbc:ds-factories
+Name                   │ Class                 │ Version │ Registration bundle
+───────────────────────┼───────────────────────┼─────────┼───────────────────────────
+PostgreSQL JDBC Driver │ org.postgresql.Driver │ 42.2.8  │ org.postgresql.jdbc42 [51]
+----
+
+You can see there the JDBC driver name and class that you can use in the `jdbc:ds-create` command.
+
+NB: don't forget to install the `pax-jdbc-*` features for the database you want to connect:
+
+----
+pax-jdbc-db2
+pax-jdbc-teradata
+pax-jdbc-derby
+pax-jdbc-derbyclient
+pax-jdbc-h2
+pax-jdbc-hsqldb
+pax-jdbc-mariadb
+pax-jdbc-oracle
+pax-jdbc-postgresql
+pax-jdbc-sqlite
+pax-jdbc-mssql
+pax-jdbc-jtds
+----
+
 ====== `jdbc:ds-create`
 
 The `jdbc:ds-create` command automatically creates a datasource definition file by leveraging pax-jdbc.
@@ -51,6 +88,8 @@ The `jdbc:ds-create` command requires either:
 
 * the `--driverName` containing the JDBC driver name
 * or the `--driverClass` containing the JDBC driver class name
+
+Driver name and driver class can be found with `jdbc:ds-factories` command.
 
 The `jdbc:ds-create` accepts a set of options and the name argument:
 
@@ -97,6 +136,18 @@ karaf@root()> jdbc:ds-create -dn derby -url "jdbc:derby:test;create=true" test
 
 We can see that this command created a configuration PID containing the datasource properties.
 
+Another example using PostgreSQL driver class name (you can find with `jdbc:ds-factories` command):
+
+----
+karaf@root()> jdbc:ds-create -dc org.postgresql.Driver -url "jdbc:postgresql://localhost:5432/test" --username user --password passwd test
+----
+
+or using datasource factory name (also provided by `jdbc:ds-factories` command):
+
+----
+karaf@root()> jdbc:ds-create -dn "PostgreSQL JDBC Driver" -url "jdbc:postgresql://localhost:5432/test" --username user --password passwd test
+----
+
 ===== `jdbc:ds-delete`
 
 The `jdbc:ds-delete` command deletes a datasource.
@@ -111,20 +162,22 @@ The `jdbc:ds-list` command lists the JDBC datasources:
 
 ----
 karaf@root()> jdbc:ds-list
-Name | Product | Version | URL | Status
----------------------------------------
-
+Name │ Service Id │ Product        │ Version              │ URL             │ Status
+─────┼────────────┼────────────────┼──────────────────────┼─────────────────┼───────
+test │ 112        │ Apache Derby   │ 10.8.2.2 - (1181258) │ jdbc:derby:test │ OK
 ----
 
 ===== `jdbc:ds-info`
 
-The `jdbc:ds-info` command provides details about a JDBC datasource:
+The `jdbc:ds-info` command provides details about a JDBC datasource. The data source may be specified using name
+or service.id:
 
 ----
 karaf@root()> jdbc:ds-info test
 Property       | Value
 --------------------------------------------------
 driver.version | 10.8.2.2 - (1181258)
+service.id     | 112
 username       | APP
 db.version     | 10.8.2.2 - (1181258)
 db.product     | Apache Derby
@@ -209,6 +262,7 @@ The object name to use is `org.apache.karaf:type=jdbc,name=*`.
 The `Datasources` attribute provides a tabular data of all JDBC datasource, containing:
 
 * `name` is the JDBC datasource name
+* `service.id` is the JDBC datasource ID of OSGi service
 * `product` is the database product backend
 * `url` is the JDBC URL used by the datasource
 * `version` is the database version backend.

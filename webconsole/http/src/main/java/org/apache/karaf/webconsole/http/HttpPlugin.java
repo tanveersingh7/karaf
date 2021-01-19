@@ -34,6 +34,8 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.felix.utils.json.JSONWriter;
 import org.apache.felix.webconsole.AbstractWebConsolePlugin;
 import org.apache.felix.webconsole.WebConsoleConstants;
+import org.apache.karaf.http.core.Proxy;
+import org.apache.karaf.http.core.ProxyService;
 import org.ops4j.pax.web.service.spi.ServletEvent;
 import org.ops4j.pax.web.service.spi.WebEvent;
 import org.osgi.framework.Bundle;
@@ -56,6 +58,7 @@ public class HttpPlugin extends AbstractWebConsolePlugin {
     private ServletEventHandler servletEventHandler;
     private WebEventHandler webEventHandler;
     private BundleContext bundleContext;
+    private ProxyService proxyService;
 
     @Override
     protected boolean isHtmlRequest(HttpServletRequest request) {
@@ -145,6 +148,7 @@ public class HttpPlugin extends AbstractWebConsolePlugin {
 
         final List<ServletDetails> servlets = this.getServletDetails();
         final List<WebDetail> web = this.getWebDetails();
+        final Map<String, Proxy> proxies = proxyService.getProxies();
         final String statusLine = this.getStatusLine(servlets, web);
         final JSONWriter jw = new JSONWriter(pw);
 
@@ -193,6 +197,20 @@ public class HttpPlugin extends AbstractWebConsolePlugin {
         }
         jw.endArray();
 
+        jw.key("proxy");
+        jw.array();
+        for (String proxy : proxies.keySet()) {
+            jw.object();
+            jw.key("url");
+            jw.value(proxy);
+            jw.key("proxyTo");
+            jw.value(proxies.get(proxy).getProxyTo());
+            jw.key("Balancing");
+            jw.value(proxies.get(proxy).getBalancingPolicy());
+            jw.endObject();
+        }
+        jw.endArray();
+
         jw.endObject();
     }
 
@@ -206,11 +224,11 @@ public class HttpPlugin extends AbstractWebConsolePlugin {
             String servletClassName = " ";
             if (servlet != null) {
                 servletClassName = servlet.getClass().getName();
-                servletClassName = servletClassName.substring(servletClassName.lastIndexOf(".") + 1, servletClassName.length());
+                servletClassName = servletClassName.substring(servletClassName.lastIndexOf(".") + 1);
             }
             String servletName = event.getServletName() != null ? event.getServletName() : " ";
             if (servletName.contains(".")) {
-                servletName = servletName.substring(servletName.lastIndexOf(".") + 1, servletName.length());
+                servletName = servletName.substring(servletName.lastIndexOf(".") + 1);
             }
 
             String alias = event.getAlias() != null ? event.getAlias() : " ";
@@ -266,7 +284,7 @@ public class HttpPlugin extends AbstractWebConsolePlugin {
     public String getStatusLine(List<ServletDetails> servlets, List<WebDetail> web) {
         Map<String, Integer> states = new HashMap<>();
         for (ServletDetails servlet : servlets) {
-            states.merge(servlet.getState(), 1, (a, b) -> a + b);
+            states.merge(servlet.getState(), 1, Integer::sum);
         }
         StringBuilder stateSummary = new StringBuilder();
         boolean first = true;
@@ -310,6 +328,10 @@ public class HttpPlugin extends AbstractWebConsolePlugin {
 
     public void setBundleContext(BundleContext bundleContext) {
         this.bundleContext = bundleContext;
+    }
+
+    public void setProxyService(ProxyService proxyService) {
+        this.proxyService = proxyService;
     }
 
 }

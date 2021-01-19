@@ -28,17 +28,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import org.apache.felix.utils.repository.BaseRepository;
+import org.apache.felix.utils.resource.CapabilityImpl;
+import org.apache.felix.utils.resource.RequirementImpl;
+import org.apache.felix.utils.resource.ResourceImpl;
 import org.apache.karaf.features.FeaturesService;
 import org.apache.karaf.features.internal.download.Downloader;
-import org.apache.karaf.features.internal.repository.BaseRepository;
-import org.apache.karaf.features.internal.resolver.CapabilityImpl;
-import org.apache.karaf.features.internal.resolver.RequirementImpl;
 import org.apache.karaf.features.internal.resolver.ResolverUtil;
-import org.apache.karaf.features.internal.resolver.ResourceImpl;
 import org.eclipse.equinox.region.Region;
 import org.eclipse.equinox.region.RegionDigraph;
 import org.eclipse.equinox.region.RegionFilter;
-import org.osgi.framework.BundleException;
 import org.osgi.framework.namespace.PackageNamespace;
 import org.osgi.framework.wiring.BundleRevision;
 import org.osgi.namespace.service.ServiceNamespace;
@@ -46,9 +45,13 @@ import org.osgi.resource.Capability;
 import org.osgi.resource.Requirement;
 import org.osgi.resource.Resource;
 import org.osgi.resource.Wiring;
+import org.osgi.service.repository.ExpressionCombiner;
 import org.osgi.service.repository.Repository;
+import org.osgi.service.repository.RequirementBuilder;
+import org.osgi.service.repository.RequirementExpression;
 import org.osgi.service.resolver.HostedCapability;
 import org.osgi.service.resolver.ResolveContext;
+import org.osgi.util.promise.Promise;
 
 import static org.apache.karaf.features.internal.resolver.ResourceUtils.addIdentityRequirement;
 import static org.apache.karaf.features.internal.resolver.ResourceUtils.getUri;
@@ -72,9 +75,9 @@ public class SubsystemResolveContext extends ResolveContext {
     private final Repository repository;
     private final Repository globalRepository;
     private final Downloader downloader;
-    private final String serviceRequirements;
+    private final FeaturesService.ServiceRequirementsBehavior serviceRequirements;
 
-    public SubsystemResolveContext(Subsystem root, RegionDigraph digraph, Repository globalRepository, Downloader downloader, String serviceRequirements) throws BundleException {
+    public SubsystemResolveContext(Subsystem root, RegionDigraph digraph, Repository globalRepository, Downloader downloader, FeaturesService.ServiceRequirementsBehavior serviceRequirements) {
         this.root = root;
         this.globalRepository = globalRepository != null ? new SubsystemRepository(globalRepository) : null;
         this.downloader = downloader;
@@ -159,6 +162,11 @@ public class SubsystemResolveContext extends ResolveContext {
         return PackageNamespace.RESOLUTION_DYNAMIC.equals(resolution);
     }
 
+    /**
+     * {@link #resToSub} will quickly map all {@link Subsystem#getInstallable() installable resources} to their
+     * {@link Subsystem}
+     * @param subsystem
+     */
     void prepare(Subsystem subsystem) {
         resToSub.put(subsystem, subsystem);
         for (Resource res : subsystem.getInstallable()) {
@@ -259,7 +267,10 @@ public class SubsystemResolveContext extends ResolveContext {
     }
 
     private Region getRegion(Resource resource) {
-        return regions.get(getSubsystem(resource).getName());
+        if (getSubsystem(resource) != null) {
+            return regions.get(getSubsystem(resource).getName());
+        }
+        return regions.get(root.getName());
     }
 
     @Override
@@ -275,7 +286,7 @@ public class SubsystemResolveContext extends ResolveContext {
     @Override
     public boolean isEffective(Requirement requirement) {
         boolean isServiceReq = ServiceNamespace.SERVICE_NAMESPACE.equals(requirement.getNamespace());
-        return !(isServiceReq && FeaturesService.SERVICE_REQUIREMENTS_DISABLE.equals(serviceRequirements));
+        return !(isServiceReq && FeaturesService.ServiceRequirementsBehavior.Disable == serviceRequirements);
     }
 
     @Override
@@ -344,6 +355,24 @@ public class SubsystemResolveContext extends ResolveContext {
                 result.put(entry.getKey(), caps);
             }
             return result;
+        }
+
+        @Override
+        public Promise<Collection<Resource>> findProviders(RequirementExpression expression) {
+            // TODO
+            return null;
+        }
+
+        @Override
+        public ExpressionCombiner getExpressionCombiner() {
+            // TODO
+            return null;
+        }
+
+        @Override
+        public RequirementBuilder newRequirementBuilder(String namespace) {
+            // TODO
+            return null;
         }
 
         private void wrap(Map<Capability, Capability> map, Subsystem subsystem, Resource resource) {

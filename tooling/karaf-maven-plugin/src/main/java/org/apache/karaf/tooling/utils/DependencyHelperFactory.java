@@ -38,12 +38,13 @@ import java.util.List;
 public class DependencyHelperFactory {
 
     /**
-     * <p>Create a new {@link DependencyHelper} based on what has been found in {@link
-     * org.codehaus.plexus.PlexusContainer}</p>
+     * Create a new {@link DependencyHelper} based on what has been found in
+     * {@link org.codehaus.plexus.PlexusContainer}.
      *
      * @param container    The Maven Plexus container to use.
      * @param mavenProject The Maven project to use.
      * @param mavenSession The Maven session.
+     * @param cacheSize    Size of the artifact/file LRU cache
      * @param log          The log to use for the messages.
      *
      * @return The {@link DependencyHelper} depending of the Maven version used.
@@ -51,13 +52,13 @@ public class DependencyHelperFactory {
      * @throws MojoExecutionException If the plugin execution fails.
      */
     public static DependencyHelper createDependencyHelper(
-            PlexusContainer container, MavenProject mavenProject, MavenSession mavenSession, Log log
-                                                         ) throws MojoExecutionException {
+            PlexusContainer container, MavenProject mavenProject, MavenSession mavenSession, int cacheSize, Log log
+            ) throws MojoExecutionException {
         try {
             final RepositorySystem system = container.lookup(RepositorySystem.class);
             final RepositorySystemSession session = mavenSession.getRepositorySession();
             final List<RemoteRepository> repositories = mavenProject.getRemoteProjectRepositories();
-            return new Dependency31Helper(repositories, session, system);
+            return new Dependency31Helper(repositories, session, system, cacheSize);
         } catch (ComponentLookupException e) {
             throw new MojoExecutionException(e.getMessage(), e);
         }

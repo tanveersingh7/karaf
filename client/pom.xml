@@ -24,7 +24,7 @@
     <parent>
         <groupId>org.apache.karaf</groupId>
         <artifactId>karaf</artifactId>
-        <version>4.2.0-SNAPSHOT</version>
+        <version>4.3.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -37,6 +37,18 @@
         <appendedResourcesDirectory>${basedir}/../etc/appended-resources</appendedResourcesDirectory>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.karaf</groupId>
+                <artifactId>karaf-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency>
             <groupId>org.jline</groupId>
@@ -44,7 +56,7 @@
         </dependency>
         <dependency>
             <groupId>org.apache.sshd</groupId>
-            <artifactId>sshd-core</artifactId>
+            <artifactId>sshd-osgi</artifactId>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -81,40 +93,18 @@
                         <Bundle-Description>Shell client bundle for Apache Karaf.</Bundle-Description>
                         <Private-Package>
                             org.apache.karaf.client;
-                            org.slf4j.impl;
+                            org.slf4j*;
                             org.apache.felix.utils.properties;
                             org.apache.karaf.util.config;
                             META-INF;-split-package:=merge-first
                         </Private-Package>
                         <Include-Resource>
-                            ../shell/ssh/src/main/resources/karaf.key,
                             {maven-resources}
                         </Include-Resource>
                         <Import-Package>!*</Import-Package>
                     </instructions>
                     <unpackBundle>true</unpackBundle>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>build-helper-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>attach-artifacts</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>attach-artifact</goal>
-                        </goals>
-                        <configuration>
-                            <artifacts>
-                                <artifact>
-                                    <file>target/classes/karaf.key</file>
-                                    <type>key</type>
-                                </artifact>
-                            </artifacts>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>

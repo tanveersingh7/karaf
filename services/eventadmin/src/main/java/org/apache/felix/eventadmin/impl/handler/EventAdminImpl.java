@@ -23,10 +23,10 @@ import java.util.HashMap;
 
 import javax.security.auth.Subject;
 
-import org.apache.felix.eventadmin.impl.handler.EventHandlerTracker.Matcher;
 import org.apache.felix.eventadmin.impl.tasks.AsyncDeliverTasks;
 import org.apache.felix.eventadmin.impl.tasks.DefaultThreadPool;
 import org.apache.felix.eventadmin.impl.tasks.SyncDeliverTasks;
+import org.apache.felix.eventadmin.impl.util.Matchers;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
@@ -34,13 +34,13 @@ import org.osgi.service.event.EventConstants;
 
 /**
  * This is the actual implementation of the OSGi R4 Event Admin Service (see the
- * Compendium 113 for details). The implementation uses a <tt>HandlerTasks</tt>
- * in order to determine applicable <tt>EventHandler</tt> for a specific event and
- * subsequently dispatches the event to the handlers via <tt>DeliverTasks</tt>.
- * To do this, it uses two different <tt>DeliverTasks</tt> one for asynchronous and
- * one for synchronous event delivery depending on whether its <tt>post()</tt> or
- * its <tt>send()</tt> method is called. Note that the actual work is done in the
- * implementations of the <tt>DeliverTasks</tt>. Additionally, a stop method is
+ * Compendium 113 for details). The implementation uses a <code>HandlerTasks</code>
+ * in order to determine applicable <code>EventHandler</code> for a specific event and
+ * subsequently dispatches the event to the handlers via <code>DeliverTasks</code>.
+ * To do this, it uses two different <code>DeliverTasks</code> one for asynchronous and
+ * one for synchronous event delivery depending on whether its <code>post()</code> or
+ * its <code>send()</code> method is called. Note that the actual work is done in the
+ * implementations of the <code>DeliverTasks</code>. Additionally, a stop method is
  * provided that prevents subsequent events to be delivered.
  *
  * @author <a href="mailto:dev@felix.apache.org">Felix Project Team</a>
@@ -57,7 +57,7 @@ public class EventAdminImpl implements EventAdmin
     private final SyncDeliverTasks m_sendManager;
 
     // matchers for ignore topics
-    private Matcher[] m_ignoreTopics;
+    private Matchers.Matcher[] m_ignoreTopics;
 
     private boolean addTimestamp;
     private boolean addSubject;
@@ -96,7 +96,7 @@ public class EventAdminImpl implements EventAdmin
         this.tracker.open();
         m_sendManager = new SyncDeliverTasks(syncPool, timeout);
         m_postManager = new AsyncDeliverTasks(asyncPool, m_sendManager);
-        m_ignoreTopics = EventHandlerTracker.createMatchers(ignoreTopics);
+        m_ignoreTopics = Matchers.createEventTopicMatchers(ignoreTopics);
     }
 
     /**
@@ -124,7 +124,7 @@ public class EventAdminImpl implements EventAdmin
         boolean result = true;
         if ( this.m_ignoreTopics != null )
         {
-            for(final Matcher m : this.m_ignoreTopics)
+            for(final Matchers.Matcher m : this.m_ignoreTopics)
             {
                 if ( m.match(event.getTopic()) )
                 {
@@ -229,7 +229,7 @@ public class EventAdminImpl implements EventAdmin
         this.tracker.update(ignoreTimeout, requireTopic);
         this.m_sendManager.update(timeout);
         this.tracker.open();
-        this.m_ignoreTopics = EventHandlerTracker.createMatchers(ignoreTopics);
+        this.m_ignoreTopics = Matchers.createEventTopicMatchers(ignoreTopics);
     }
 
     /**

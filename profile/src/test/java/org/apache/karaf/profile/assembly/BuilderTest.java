@@ -25,7 +25,6 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 
-import org.junit.Ignore;
 import org.junit.Test;
 import org.osgi.framework.Constants;
 
@@ -74,33 +73,6 @@ public class BuilderTest {
         assertThat(builder.getPidsToExtract().get(0), equalTo("!jmx.acl.*"));
         assertThat(builder.getPidsToExtract().get(1), equalTo("!org.apache.karaf.command.acl.*"));
         assertThat(builder.getPidsToExtract().get(2), equalTo("*"));
-    }
-
-    @Test
-    @Ignore("This test can not run at this position as it needs the staticFramework kar which is not yet available")
-    public void testBuilder() throws Exception {
-
-        Path workDir = Paths.get("target/distrib");
-        recursiveDelete(workDir);
-
-        Builder builder = Builder.newInstance()
-                .staticFramework()
-                .profilesUris("jar:mvn:org.apache.karaf.demos.profiles/registry/4.0.0-SNAPSHOT!/")
-                .environment("static")
-                .profiles("karaf",
-                          "example-loanbroker-bank1",
-                          "example-loanbroker-bank2",
-                          "example-loanbroker-bank3",
-                          "example-loanbroker-broker",
-                          "activemq-broker")
-                .homeDirectory(workDir);
-
-        try {
-            builder.generateAssembly();
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw e;
-        }
     }
 
     private static void recursiveDelete(Path path) throws IOException {

@@ -31,10 +31,18 @@ public interface ConfigRepository {
 
     void delete(String pid) throws Exception;
 
+    boolean exists(String pid) throws Exception;
+
     void update(String pid, Map<String, Object> properties) throws IOException;
+
+    void update(String pid, Map<String, Object> properties, String suffix) throws IOException;
+
+    String createFactoryConfiguration(String factoryPid, Map<String, Object> properties, String suffix) throws IOException;
 
     String createFactoryConfiguration(String factoryPid, Map<String, Object> properties) throws IOException;
 
     String createFactoryConfiguration(String factoryPid, String alias, Map<String, Object> properties) throws IOException;
+
+    String createFactoryConfiguration(String factoryPid, String alias, Map<String, Object> properties, String suffix) throws IOException;
 
 }

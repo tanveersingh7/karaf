@@ -34,6 +34,10 @@ public interface FeaturesServiceMBean {
 
     String FEATURE_INSTALLED = "Installed";
 
+    String FEATURE_BLACKLISTED = "Blacklisted";
+
+    String FEATURE_REQUIRED = "Required";
+
     String FEATURE_CONFIG_PID = "Pid";
     String FEATURE_CONFIG_ELEMENTS = "Elements";
     String FEATURE_CONFIG_APPEND = "Append";
@@ -59,7 +63,8 @@ public interface FeaturesServiceMBean {
      * The item names in the CompositeData representing a feature
      */
     String[] FEATURE = {FEATURE_NAME, FEATURE_VERSION, FEATURE_DEPENDENCIES, FEATURE_BUNDLES,
-        FEATURE_CONFIGURATIONS, FEATURE_CONFIGURATIONFILES, FEATURE_INSTALLED};
+        FEATURE_CONFIGURATIONS, FEATURE_CONFIGURATIONFILES, FEATURE_INSTALLED, FEATURE_BLACKLISTED,
+        FEATURE_REQUIRED};
 
     String[] FEATURE_IDENTIFIER = {FEATURE_NAME, FEATURE_VERSION};
 
@@ -84,6 +89,8 @@ public interface FeaturesServiceMBean {
 
     String REPOSITORY_FEATURES = "Features";
 
+    String REPOSITORY_BLACKLISTED = "Blacklisted";
+
     /**
      * The type of the event which is emitted for repositories events
      */
@@ -98,7 +105,7 @@ public interface FeaturesServiceMBean {
     /**
      * The item names in the CompositeData representing a feature
      */
-    String[] REPOSITORY = {REPOSITORY_NAME, REPOSITORY_URI, REPOSITORY_REPOSITORIES, REPOSITORY_FEATURES};
+    String[] REPOSITORY = {REPOSITORY_NAME, REPOSITORY_URI, REPOSITORY_REPOSITORIES, REPOSITORY_FEATURES, REPOSITORY_BLACKLISTED};
 
     /**
      * The item names in the CompositeData representing the event raised for
@@ -109,6 +116,8 @@ public interface FeaturesServiceMBean {
     TabularData getFeatures() throws Exception;
 
     TabularData getRepositories() throws Exception;
+
+    TabularData repositoryProvidedFeatures(String url) throws Exception;
 
     void addRepository(String url) throws Exception;
 
@@ -140,8 +149,12 @@ public interface FeaturesServiceMBean {
 
     void uninstallFeature(String name, boolean noRefresh) throws Exception;
 
+    void uninstallFeature(String name, boolean noRefresh, boolean deleteConfigurations) throws Exception;
+
     void uninstallFeature(String name, String version) throws Exception;
 
     void uninstallFeature(String name, String version, boolean noRefresh) throws Exception;
+
+    void uninstallFeature(String name, String version, boolean noRefresh, boolean deleteConfigurations) throws Exception;
 
 }

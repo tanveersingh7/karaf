@@ -16,6 +16,7 @@ package org.apache.karaf.jaas.modules.ldap;
 
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
+import javax.naming.PartialResultException;
 import javax.naming.directory.Attribute;
 import javax.naming.directory.Attributes;
 import javax.naming.directory.DirContext;
@@ -69,6 +70,7 @@ public class LDAPCache implements Closeable, NamespaceChangeListener, ObjectChan
 
     private final Map<String, String[]> userDnAndNamespace;
     private final Map<String, String[]> userRoles;
+    private final Map<String, String[]> userPubkeys;
     private final LDAPOptions options;
     private DirContext context;
 
@@ -76,6 +78,7 @@ public class LDAPCache implements Closeable, NamespaceChangeListener, ObjectChan
         this.options = options;
         userDnAndNamespace = new HashMap<>();
         userRoles = new HashMap<>();
+        userPubkeys = new HashMap<>();
     }
 
     @Override
@@ -212,6 +215,18 @@ public class LDAPCache implements Closeable, NamespaceChangeListener, ObjectChan
         return result;
     }
 
+    public synchronized String[] getUserPubkeys(String userDn) throws NamingException {
+        String[] result = userPubkeys.get(userDn);
+        if (result == null) {
+            result = doGetUserPubkeys(userDn);
+            if (!options.getDisableCache()) {
+                userPubkeys.put(userDn, result);
+            }
+        }
+        return result;
+    }
+
+
     protected Set<String> tryMappingRole(String role) {
         Set<String> roles = new HashSet<>();
         if (options.getRoleMapping().isEmpty()) {
@@ -247,12 +262,12 @@ public class LDAPCache implements Closeable, NamespaceChangeListener, ObjectChan
             filter = filter.replace("\\", "\\\\");
 
             LOGGER.debug("Looking for the user roles in LDAP with ");
-            LOGGER.debug("  base DN: " + options.getRoleBaseDn());
-            LOGGER.debug("  filter: " + filter);
+            LOGGER.debug("  base DN: {}", options.getRoleBaseDn());
+            LOGGER.debug("  filter: {}", filter);
 
             NamingEnumeration<SearchResult> namingEnumeration = context.search(options.getRoleBaseDn(), filter, controls);
+            List<String> rolesList = new ArrayList<>();
             try {
-                List<String> rolesList = new ArrayList<>();
                 while (namingEnumeration.hasMore()) {
                     SearchResult result = namingEnumeration.next();
                     Attributes attributes = result.getAttributes();
@@ -267,16 +282,20 @@ public class LDAPCache implements Closeable, NamespaceChangeListener, ObjectChan
                                 if (roleMappings.isEmpty()) {
                                     rolesList.add(role);
                                 } else {
-                                    for (String roleMapped : roleMappings) {
-                                        rolesList.add(roleMapped);
-                                    }
+                                    rolesList.addAll(roleMappings);
                                 }
                             }
                         }
                     }
-
                 }
-                return rolesList.toArray(new String[rolesList.size()]);
+            } catch (PartialResultException e) {
+                // Workaround for AD servers not handling referrals correctly.
+                if (options.getIgnorePartialResultException()) {
+                    LOGGER.debug("PartialResultException encountered and ignored", e);
+                }
+                else {
+                    throw e;
+                }
             } finally {
                 if (namingEnumeration != null) {
                     try {
@@ -286,11 +305,40 @@ public class LDAPCache implements Closeable, NamespaceChangeListener, ObjectChan
                     }
                 }
             }
+
+            return rolesList.toArray(new String[rolesList.size()]);
         } else {
             LOGGER.debug("The user role filter is null so no roles are retrieved");
             return new String[] {};
         }
     }
+
+    private String[] doGetUserPubkeys(String userDn) throws NamingException {
+        DirContext context = open();
+
+        String userPubkeyAttribute = options.getUserPubkeyAttribute();
+        if (userPubkeyAttribute != null) {
+            LOGGER.debug("Looking for public keys of user {} in attribute {}", userDn, userPubkeyAttribute);
+
+            Attributes attributes = context.getAttributes(userDn, new String[]{userPubkeyAttribute});
+            Attribute pubkeyAttribute = attributes.get(userPubkeyAttribute);
+
+            List<String> pubkeyList = new ArrayList<>();
+            if (pubkeyAttribute != null) {
+                for (int i = 0; i < pubkeyAttribute.size(); i++) {
+                    String pk = (String) pubkeyAttribute.get(i);
+                    if (pk != null) {
+                        pubkeyList.add(pk);
+                    }
+                }
+            }
+            return pubkeyList.toArray(new String[pubkeyList.size()]);
+        } else {
+            LOGGER.debug("The user public key attribute is null so no keys were retrieved");
+            return new String[] {};
+        }
+    }
+
 
     @Override
     public void objectAdded(NamingEvent evt) {
@@ -320,5 +368,6 @@ public class LDAPCache implements Closeable, NamespaceChangeListener, ObjectChan
     protected synchronized void clearCache() {
         userDnAndNamespace.clear();
         userRoles.clear();
+        userPubkeys.clear();
     }
 }

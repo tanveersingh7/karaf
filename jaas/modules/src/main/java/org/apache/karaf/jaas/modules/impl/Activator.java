@@ -37,8 +37,7 @@ import org.osgi.service.cm.ManagedService;
 @Managed("org.apache.karaf.jaas")
 @Services(provides = {
         @ProvideService(JaasRealm.class),
-        @ProvideService(BackingEngineFactory.class),
-        @ProvideService(EncryptionService.class)
+        @ProvideService(BackingEngineFactory.class)
 })
 public class Activator extends BaseActivator implements ManagedService {
 
@@ -64,7 +63,6 @@ public class Activator extends BaseActivator implements ManagedService {
         props.put(Constants.SERVICE_RANKING, -1);
         props.put("name", "basic");
         register(EncryptionService.class, new BasicEncryptionService(), props);
-
 
         Map<String, Object> config = getConfig();
 
@@ -102,7 +100,7 @@ public class Activator extends BaseActivator implements ManagedService {
     private Map<String, Object> getConfig() {
         Map<String, Object> config = new HashMap<>();
         populate(config, "detailed.login.exception", "false");
-        populate(config, ENCRYPTION_NAME, "");
+        populate(config, ENCRYPTION_NAME, "basic");
         populate(config, ENCRYPTION_ENABLED, "false");
         populate(config, ENCRYPTION_PREFIX, "{CRYPT}");
         populate(config, ENCRYPTION_SUFFIX, "{CRYPT}");
@@ -111,7 +109,7 @@ public class Activator extends BaseActivator implements ManagedService {
         populate(config, EVENTADMIN_ENABLED, "true");
         populate(config, "audit.file.enabled", "false");
         populate(config, "audit.file.file", System.getProperty("karaf.data") + "/security/audit.log");
-        populate(config, "audit.log.enabled", "true");
+        populate(config, "audit.log.enabled", "false");
         populate(config, "audit.log.logger", "org.apache.karaf.jaas.modules.audit.LogAuditLoginModule");
         populate(config, "audit.log.level", "info");
         populate(config, "audit.eventadmin.enabled", "true");

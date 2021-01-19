@@ -105,7 +105,7 @@ public class ConfigurationPropertyCompleter implements Completer {
                 if (configs != null && configs.length > 0) {
                     configuration = configs[0];
                     if (configuration != null) {
-                        Dictionary properties = configuration.getProperties();
+                        Dictionary properties = configuration.getProcessedProperties(null);
                         if (properties != null) {
                             Enumeration keys = properties.keys();
                             while (keys.hasMoreElements()) {
@@ -114,9 +114,7 @@ public class ConfigurationPropertyCompleter implements Completer {
                         }
                     }
                 }
-            } catch (IOException e) {
-              //Ignore
-            } catch (InvalidSyntaxException e) {
+            } catch (IOException | InvalidSyntaxException e) {
                 //Ignore
             }
         }

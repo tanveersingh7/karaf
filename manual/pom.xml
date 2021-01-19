@@ -17,13 +17,23 @@
 	<parent>
 		<groupId>org.apache.karaf</groupId>
 		<artifactId>karaf</artifactId>
-		<version>4.2.0-SNAPSHOT</version>
+		<version>4.3.1-SNAPSHOT</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
 	<artifactId>manual</artifactId>
 	<name>Apache Karaf :: Manual</name>
-	<packaging>pom</packaging>
+	<packaging>bundle</packaging>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.apache.karaf.subsystem</groupId>
+			<artifactId>org.apache.karaf.subsystem.core</artifactId>
+			<version>${project.version}</version>
+			<scope>provided</scope>
+			<optional>true</optional>
+		</dependency>
+	</dependencies>
 
 	<build>
 		<plugins>
@@ -185,12 +195,12 @@
 					</dependency>
 					<dependency>
 						<groupId>org.osgi</groupId>
-						<artifactId>org.osgi.core</artifactId>
+						<artifactId>osgi.core</artifactId>
 						<version>${osgi.version}</version>
 					</dependency>
 					<dependency>
 						<groupId>org.osgi</groupId>
-						<artifactId>org.osgi.compendium</artifactId>
+						<artifactId>osgi.cmpn</artifactId>
 						<version>${osgi.compendium.version}</version>
 					</dependency>
 					<dependency>
@@ -203,7 +213,7 @@
 			<plugin>
 				<groupId>org.asciidoctor</groupId>
 				<artifactId>asciidoctor-maven-plugin</artifactId>
-				<version>1.5.2</version>
+				<version>1.5.6</version>
 				<executions>
 					<execution>
 						<id>output-html</id>
@@ -231,11 +241,21 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-scm-publish-plugin</artifactId>
-				<version>1.0-beta-2</version>
+				<version>3.0.0</version>
 				<configuration>
 					<checkinComment>[scm-publish] Updating main site with Karaf documentation</checkinComment>
 					<pubScmUrl>scm:svn:https://svn.apache.org/repos/asf/karaf/site/production/manual/latest</pubScmUrl>
 					<content>${project.build.directory}/generated-docs</content>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.felix</groupId>
+				<artifactId>maven-bundle-plugin</artifactId>
+				<configuration>
+					<instructions>
+						<Web-ContextPath>/documentation</Web-ContextPath>
+						<Include-Resource>target/generated-docs</Include-Resource>
+					</instructions>
 				</configuration>
 			</plugin>
 		</plugins>
@@ -267,8 +287,8 @@
 											<arg value="--log" />
 											<arg value="${project.build.directory}/prince.log" />
 										</exec>
-										<attachartifact file="target/documentation.html" type="html"/>
-										<attachartifact file="target/documentation.pdf" type="pdf"/>
+										<attachartifact file="target/documentation.html" type="html" />
+										<attachartifact file="target/documentation.pdf" type="pdf" />
 									</tasks>
 								</configuration>
 							</execution>

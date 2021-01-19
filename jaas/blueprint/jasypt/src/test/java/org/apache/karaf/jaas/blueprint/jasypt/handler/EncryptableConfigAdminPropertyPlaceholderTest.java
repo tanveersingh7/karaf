@@ -130,7 +130,7 @@ public class EncryptableConfigAdminPropertyPlaceholderTest extends TestCase {
 
             // System.out.println(">> ConfigImpl pid : " + pid);
 
-            Dictionary<String, ?> dict = conf.getProperties();
+            Dictionary<String, ?> dict = conf.getProcessedProperties(null);
             for (Enumeration e = dict.keys(); e.hasMoreElements(); ) {
                 String key = (String) e.nextElement();
                 Object value = dict.get(key);
@@ -210,7 +210,7 @@ public class EncryptableConfigAdminPropertyPlaceholderTest extends TestCase {
      */
     private static String explode(Dictionary dictionary) {
         Enumeration keys = dictionary.keys();
-        StringBuffer result = new StringBuffer();
+        StringBuilder result = new StringBuilder();
         while (keys.hasMoreElements()) {
             Object key = keys.nextElement();
             result.append(String.format("%s=%s", key, dictionary.get(key)));
@@ -227,9 +227,7 @@ public class EncryptableConfigAdminPropertyPlaceholderTest extends TestCase {
     private static final Collection<ServiceReference> asCollection(ServiceReference[] references) {
         List<ServiceReference> result = new LinkedList<>();
         if (references != null) {
-            for (ServiceReference reference : references) {
-                result.add(reference);
-            }
+            result.addAll(Arrays.asList(references));
         }
         return result;
     }

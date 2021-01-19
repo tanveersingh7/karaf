@@ -19,6 +19,7 @@ package org.apache.karaf.jaas.modules.properties;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
 
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
@@ -34,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.felix.utils.properties.Properties;
 import org.apache.karaf.jaas.modules.encryption.EncryptionSupport;
 import org.apache.karaf.util.StreamUtils;
+import org.apache.karaf.util.ThreadUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,10 +46,18 @@ public class AutoEncryptionSupport implements Runnable, Closeable {
     private EncryptionSupport encryptionSupport;
     private ExecutorService executor;
 
+    private String usersFileName;
+
     public AutoEncryptionSupport(Map<String, Object> properties) {
         running = true;
         encryptionSupport = new EncryptionSupport(properties);
-        executor = Executors.newSingleThreadExecutor();
+        Object usersFile = properties.get(PropertiesLoginModule.USER_FILE);
+        if (usersFile instanceof File) {
+            usersFileName = ((File) usersFile).getAbsolutePath();
+        } else if (usersFile != null) {
+            usersFileName = usersFile.toString();
+        }
+        executor = Executors.newSingleThreadExecutor(ThreadUtils.namedThreadFactory("encryption"));
         executor.execute(this);
     }
 
@@ -66,10 +76,17 @@ public class AutoEncryptionSupport implements Runnable, Closeable {
         WatchService watchService = null;
         try {
             watchService = FileSystems.getDefault().newWatchService();
-            Path dir = Paths.get(System.getProperty("karaf.etc"));
+            Path dir = null;
+            Path file = null;
+            if (usersFileName == null) {
+                dir = Paths.get(System.getProperty("karaf.etc"));
+                file = dir.resolve("users.properties");
+            } else {
+                file = new File(usersFileName).toPath();
+                dir = file.getParent();
+            }
             dir.register(watchService, ENTRY_MODIFY);
 
-            Path file = dir.resolve("users.properties");
             encryptedPassword(new Properties(file.toFile()));
 
             while (running) {
@@ -121,14 +138,12 @@ public class AutoEncryptionSupport implements Runnable, Closeable {
             String encryptedPassword = encryptionSupport.encrypt(storedPassword);
             if (!storedPassword.equals(encryptedPassword)) {
                 LOGGER.debug("The password isn't flagged as encrypted, encrypt it.");
-                userInfos = encryptedPassword + ",";
+                StringBuilder userInfosBuilder = new StringBuilder(encryptedPassword);
                 for (int i = 1; i < infos.length; i++) {
-                    if (i == (infos.length - 1)) {
-                        userInfos = userInfos + infos[i];
-                    } else {
-                        userInfos = userInfos + infos[i] + ",";
-                    }
+                    userInfosBuilder.append(',').append(infos[i]);
                 }
+                userInfos = userInfosBuilder.toString();
+
                 if (user.contains("\\")) {
                     users.remove(user);
                     user = user.replace("\\", "\\\\");

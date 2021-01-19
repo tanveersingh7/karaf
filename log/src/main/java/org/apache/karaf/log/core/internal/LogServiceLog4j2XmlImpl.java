@@ -24,6 +24,7 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -123,6 +124,14 @@ public class LogServiceLog4j2XmlImpl implements LogServiceInternal {
             }
             try (OutputStream os = Files.newOutputStream(path, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
                 TransformerFactory tFactory = TransformerFactory.newInstance();
+                tFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, Boolean.TRUE);
+                try {
+                    tFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+                    tFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+                } catch (IllegalArgumentException e) {
+                    // ignore
+                }
+
                 Transformer transformer = tFactory.newTransformer();
                 transformer.transform(new DOMSource(doc), new StreamResult(os));
             }
@@ -208,6 +217,8 @@ public class LogServiceLog4j2XmlImpl implements LogServiceInternal {
         factory.setNamespaceAware(true);
         factory.setValidating(false);
         factory.setExpandEntityReferences(false);
+
+        setFeature(factory, XMLConstants.FEATURE_SECURE_PROCESSING, true);
         setFeature(factory, "http://xml.org/sax/features/external-general-entities", false);
         setFeature(factory, "http://xml.org/sax/features/external-parameter-entities", false);
         setFeature(factory, "http://apache.org/xml/features/nonvalidating/load-external-dtd", false);

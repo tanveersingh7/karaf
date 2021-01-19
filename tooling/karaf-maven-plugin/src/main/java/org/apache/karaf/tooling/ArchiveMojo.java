@@ -97,7 +97,7 @@ public class ArchiveMojo extends MojoSupport {
     private boolean attach = true;
 
     /**
-     * If supplied, the classifer for the artifact when attached.
+     * If supplied, the classifier for the artifact when attached.
      */
     @Parameter
     private String classifier;
@@ -113,16 +113,31 @@ public class ArchiveMojo extends MojoSupport {
     private boolean useSymLinks = false;
 
     public void execute() throws MojoExecutionException, MojoFailureException {
-        getLog().debug("Setting artifact file: " + targetFile);
         org.apache.maven.artifact.Artifact artifact = project.getArtifact();
         artifact.setFile(targetFile);
+
+        // abort if there are no archives to be created
+        if (!archiveTarGz && !archiveZip) {
+            return;
+        }
+
         try {
-            //now pack up the server.
-            if(archiveTarGz){
-                archive("tar.gz");
-            }
-            if(archiveZip) {
-                archive("zip");
+            if (project.getPackaging().equals("karaf-assembly")) {
+                if (archiveZip) {
+                    archive("zip", false, true);
+                    if (archiveTarGz) {
+                        archive("tar.gz", true, false);
+                    }
+                } else {
+                    archive("tar.gz", false, true);
+                }
+            } else {
+                if (archiveTarGz) {
+                    archive("tar.gz", true, false);
+                }
+                if (archiveZip) {
+                    archive("zip", true, false);
+                }
             }
         } catch (Exception e) {
             throw new MojoExecutionException("Could not archive plugin", e);
@@ -130,21 +145,17 @@ public class ArchiveMojo extends MojoSupport {
     }
 
     @SuppressWarnings("deprecation")
-	private void archive(String type) throws IOException {
-        Artifact artifact1 = factory.createArtifactWithClassifier(project.getArtifact().getGroupId(), project.getArtifact().getArtifactId(), project.getArtifact().getVersion(), type, "bin");
-        File target1 = archive(targetServerDirectory, destDir, artifact1);
+	private void archive(String type, boolean attachToProject, boolean setProjectFile) throws IOException {
+        Artifact artifact = factory.createArtifact(project.getArtifact().getGroupId(), project.getArtifact().getArtifactId(), project.getArtifact().getVersion(), project.getArtifact().getScope(), type);
+        File target = archive(targetServerDirectory, destDir, artifact);
 
-        // artifact1 is created with explicit classifier "bin", which is dropped below when attachArtifact is called
-        // which means we can't use artifact1.equals(artifact) directly with artifact1
-        Artifact artifact2 = factory.createArtifact(artifact1.getGroupId(), artifact1.getArtifactId(), artifact1.getVersion(), artifact1.getScope(), artifact1.getType());
-        for (Artifact artifact : project.getAttachedArtifacts()) {
-            if (artifact2.equals(artifact)) {
-                getLog().debug("Artifact " + artifact2 + " already attached");
-                return;
-            }
+        if (attachToProject && attach) {
+            projectHelper.attachArtifact(project, artifact.getType(), classifier, target);
         }
-        if (attach) {
-            projectHelper.attachArtifact(project, artifact1.getType(), classifier, target1);
+
+        if (setProjectFile) {
+            artifact.setFile(target);
+            project.setArtifact(artifact);
         }
     }
 
